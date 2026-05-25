@@ -20,6 +20,36 @@ export class TestCaseService {
     return this.dbAdapter.getTestCasesByArtifactId(artifactId)
   }
 
+  private async assertOfficialTestcaseGate(featureId: string): Promise<Artifact> {
+    const understandingArtifact = await this.dbAdapter.getLatestArtifactByType(featureId, "FEATURE_UNDERSTANDING")
+    if (!understandingArtifact || understandingArtifact.status !== "CONFIRMED") {
+      throw new Error("Feature Understanding must be confirmed before generating official test cases.")
+    }
+
+    const thread = await this.dbAdapter.getOrCreateClarificationThread(featureId)
+    const messages = await this.dbAdapter.getClarificationMessagesByThreadId(thread.id)
+    const criticalQuestionKeys = new Set(
+      messages
+        .filter((message) => message.sender_type === "AI" && message.is_critical && message.question_key)
+        .map((message) => message.question_key!)
+    )
+
+    if (criticalQuestionKeys.size > 0) {
+      const answeredQuestionKeys = new Set(
+        messages
+          .filter((message) => message.sender_type === "USER" && message.question_key)
+          .map((message) => message.question_key!)
+      )
+      const hasUnansweredCritical = Array.from(criticalQuestionKeys).some((key) => !answeredQuestionKeys.has(key))
+
+      if (hasUnansweredCritical || thread.status !== "RESOLVED") {
+        throw new Error("Critical clarification must be answered and resolved before official/final test cases.")
+      }
+    }
+
+    return understandingArtifact
+  }
+
   /**
    * AI tự động sinh kịch bản kiểm thử (Test Case Generation Step)
    */
@@ -32,12 +62,12 @@ export class TestCaseService {
     const { projectId, featureId, modelId, isDraftWithAssumptions = false } = params
 
     // 1. Kiểm tra Gate: Nếu không phải draft-only, bắt buộc phải có Confirmed Understanding
-    let understandingArtifact = await this.dbAdapter.getLatestArtifactByType(featureId, "FEATURE_UNDERSTANDING")
+    let understandingArtifact: Artifact | null = null
     
     if (!isDraftWithAssumptions) {
-      if (!understandingArtifact || understandingArtifact.status !== "CONFIRMED") {
-        throw new Error("Feature Understanding must be confirmed before generating official test cases.")
-      }
+      understandingArtifact = await this.assertOfficialTestcaseGate(featureId)
+    } else {
+      understandingArtifact = await this.dbAdapter.getLatestArtifactByType(featureId, "FEATURE_UNDERSTANDING")
     }
 
     // 2. Gom context: Feature Understanding content
@@ -154,6 +184,8 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
    */
   async saveFinalVersion(featureId: string, sourceArtifactId: string): Promise<Artifact> {
     // 1. Lấy toàn bộ các dòng testcases hiện tại của source artifact (chứa các bản chỉnh sửa inline của tester)
+    await this.assertOfficialTestcaseGate(featureId)
+
     const currentCases = await this.dbAdapter.getTestCasesByArtifactId(sourceArtifactId)
     validateEditableTestCases(currentCases)
 
