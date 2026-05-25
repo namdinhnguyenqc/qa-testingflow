@@ -56,21 +56,9 @@ export default function FeatureWorkspace() {
     fetchData()
   }, [fetchData])
 
-  // Tự động chuyển tab dựa trên status của feature (chỉ hỗ trợ chuyển hướng ban đầu để trải nghiệm mượt)
+  // Tự động chuyển tab dựa trên status của feature (Khóa cứng ở inputs trong Phase 00)
   useEffect(() => {
-    if (!feature) return
-    const status = feature.status
-    if (status === "DRAFT" || status === "INPUT_READY") {
-      setActiveTab("inputs")
-    } else if (status === "ANALYZING") {
-      setActiveTab("analysis")
-    } else if (status === "NEEDS_CLARIFICATION") {
-      setActiveTab("clarification")
-    } else if (status === "READY_FOR_UNDERSTANDING" || status === "UNDERSTANDING_REVIEW") {
-      setActiveTab("understanding")
-    } else if (status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED") {
-      setActiveTab("testcases")
-    }
+    setActiveTab("inputs")
   }, [feature])
 
   const getStatusStyle = (status?: Feature["status"]) => {
@@ -142,23 +130,22 @@ export default function FeatureWorkspace() {
     )
   }
 
-  // Cấu hình trạng thái sáng/mờ của các steps trong Stepper dựa trên Feature status thực tế
   const status = feature.status
   const steps = [
     { key: "inputs", label: "Inputs", active: true },
-    { key: "analysis", label: "Analysis", active: status !== "DRAFT" && status !== "INPUT_READY" },
-    { key: "clarification", label: "Clarification", active: status === "NEEDS_CLARIFICATION" || status === "READY_FOR_UNDERSTANDING" || status === "UNDERSTANDING_REVIEW" || status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED" },
-    { key: "understanding", label: "Understanding", active: status === "READY_FOR_UNDERSTANDING" || status === "UNDERSTANDING_REVIEW" || status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED" },
-    { key: "testcases", label: "Test Cases", active: status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED" },
-    { key: "export", label: "Export", active: status === "COMPLETED" },
+    { key: "analysis", label: "Analysis", active: false },
+    { key: "clarification", label: "Clarification", active: false },
+    { key: "understanding", label: "Understanding", active: false },
+    { key: "testcases", label: "Test Cases", active: false },
+    { key: "export", label: "Export", active: false },
   ]
 
-  // === Mở khóa tab dựa trên tiến độ thực tế ===
+  // === Mở khóa tab dựa trên tiến độ thực tế (Khóa cứng trong Phase 00) ===
   const isInputsReady = status !== "DRAFT"
-  const isAnalysisUnlocked = status !== "DRAFT" && status !== "INPUT_READY"
-  const isClarificationUnlocked = status === "NEEDS_CLARIFICATION" || status === "READY_FOR_UNDERSTANDING" || status === "UNDERSTANDING_REVIEW" || status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED"
-  const isUnderstandingUnlocked = status === "READY_FOR_UNDERSTANDING" || status === "UNDERSTANDING_REVIEW" || status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED"
-  const isTestCasesUnlocked = status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED"
+  const isAnalysisUnlocked = false
+  const isClarificationUnlocked = false
+  const isUnderstandingUnlocked = false
+  const isTestCasesUnlocked = false
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
