@@ -1,9 +1,19 @@
 import { SupabaseDbAdapter } from "@/infrastructure/database/supabase-db-adapter"
 import { SkillLoader } from "@/infrastructure/skills/skill-loader"
 import { OpenAICompatibleAdapter } from "@/infrastructure/model/openai-adapter"
+import { ModelExecutionResult } from "@/infrastructure/model/model-adapter"
 import { JsonValidator } from "@/infrastructure/validation/json-validator"
 import { StepRun, ValidationStatus } from "@/domain/workflow-runs/types"
 import { Artifact } from "@/domain/artifacts/types"
+
+export type ModelExecutionMode = ModelExecutionResult["executionMode"]
+
+export interface AiStepExecutionResult {
+  stepRun: StepRun
+  artifact?: Artifact
+  error?: string
+  executionMode?: ModelExecutionMode
+}
 
 export class AiExecutionService {
   private dbAdapter: SupabaseDbAdapter
@@ -32,7 +42,7 @@ export class AiExecutionService {
     schemaVersion: string
     modelId: string
     contextData: string
-  }): Promise<{ stepRun: StepRun; artifact?: Artifact; error?: string }> {
+  }): Promise<AiStepExecutionResult> {
     // 1. Khởi tạo step run
     const stepRun = await this.dbAdapter.createStepRun({
       workflow_run_id: params.workflowRunId,
@@ -79,7 +89,7 @@ export class AiExecutionService {
         status: "FAILED",
         error_summary: `AI Provider Error: ${modelResult.error}`,
       })
-      return { stepRun: failedStep, error: modelResult.error }
+      return { stepRun: failedStep, error: modelResult.error, executionMode: modelResult.executionMode }
     }
 
     // 4. Validate và Repair Loop
@@ -87,6 +97,7 @@ export class AiExecutionService {
     let validation = this.jsonValidator.validateSchema(schemaJson, parsedData)
     let repairAttempts = 0
     let currentRaw = modelResult.rawOutput
+    let executionMode = modelResult.executionMode
     let validationStatus: ValidationStatus = validation.isValid ? "VALID" : "INVALID"
 
     while (!validation.isValid && repairAttempts < this.maxRepairAttempts) {
@@ -113,16 +124,29 @@ Hãy phân tích lỗi trên, sửa lại cấu trúc và trả về một khố
       })
 
       if (modelResult.error) {
+        currentRaw = modelResult.rawOutput
+        executionMode = modelResult.executionMode
         break
       }
 
       parsedData = modelResult.parsedOutput
       validation = this.jsonValidator.validateSchema(schemaJson, parsedData)
       currentRaw = modelResult.rawOutput
+      executionMode = modelResult.executionMode
       validationStatus = validation.isValid ? "REPAIRED" : "INVALID"
     }
 
     // 5. Lưu kết quả thực thi
+    if (modelResult.error) {
+      const failedStep = await this.dbAdapter.updateStepRun(stepRun.id, {
+        status: "FAILED",
+        repair_attempts: repairAttempts,
+        raw_output_text: currentRaw,
+        error_summary: `AI Provider Error: ${modelResult.error}`,
+      })
+      return { stepRun: failedStep, error: modelResult.error, executionMode }
+    }
+
     if (!validation.isValid) {
       const failedStep = await this.dbAdapter.updateStepRun(stepRun.id, {
         status: "FAILED",
@@ -134,16 +158,22 @@ Hãy phân tích lỗi trên, sửa lại cấu trúc và trả về một khố
       return {
         stepRun: failedStep,
         error: `JSON Schema validation failed: ${validation.errors?.[0]}`,
+        executionMode,
       }
     }
 
     // Đã VALID hoặc REPAIRED thành công
+    const persistedOutput = {
+      ...(parsedData || {}),
+      _modelExecution: { executionMode },
+    }
+
     const completedStep = await this.dbAdapter.updateStepRun(stepRun.id, {
       status: "COMPLETED",
       validation_status: validationStatus,
       repair_attempts: repairAttempts,
       raw_output_text: currentRaw,
-      validated_output_json: parsedData,
+      validated_output_json: persistedOutput,
     })
 
     // 6. Tạo Artifact mới
@@ -161,7 +191,7 @@ Hãy phân tích lỗi trên, sửa lại cấu trúc và trả về một khố
       feature_id: params.featureId,
       step_run_id: completedStep.id,
       artifact_type: artifactType,
-      content_json: parsedData || {},
+      content_json: persistedOutput,
       schema_key: params.schemaKey,
       schema_version: params.schemaVersion,
       status: "DRAFT", // artifact ban đầu luôn ở dạng DRAFT
@@ -170,6 +200,7 @@ Hãy phân tích lỗi trên, sửa lại cấu trúc và trả về một khố
     return {
       stepRun: completedStep,
       artifact,
+      executionMode,
     }
   }
 }

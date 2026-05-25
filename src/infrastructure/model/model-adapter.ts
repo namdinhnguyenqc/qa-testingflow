@@ -2,6 +2,7 @@ export interface ModelExecutionResult {
   rawOutput: string
   parsedOutput?: Record<string, any>
   error?: string
+  executionMode: "mock" | "provider"
 }
 
 export interface ModelAdapter {

@@ -1,5 +1,18 @@
 import { z } from "zod"
 
+const placeholderValues = new Set([
+  "mock",
+  "dummy-ai-key",
+  "your-ai-api-key",
+  "your-supabase-anon-key",
+  "your-supabase-service-role-key",
+])
+
+const isPlaceholderValue = (value?: string) => {
+  if (!value) return true
+  return placeholderValues.has(value.trim().toLowerCase())
+}
+
 const envSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().default("QAFlow AI"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -14,7 +27,36 @@ const envSchema = z.object({
   AI_PROVIDER_API_KEY: z.string().optional(),
   AI_DEFAULT_MODEL: z.string().optional().default("gpt-4o"),
 
-  APP_ACCESS_MODE: z.enum(["demo", "team"]).default("demo"),
+  APP_ACCESS_MODE: z.enum(["demo", "team", "production"]).default("demo"),
+}).superRefine((data, ctx) => {
+  if (data.APP_ACCESS_MODE === "demo") return
+
+  if (
+    data.NEXT_PUBLIC_SUPABASE_URL.includes("mock.supabase.co") ||
+    data.NEXT_PUBLIC_SUPABASE_URL.includes("your-supabase-project.supabase.co")
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["NEXT_PUBLIC_SUPABASE_URL"],
+      message: "Team/production mode requires a real Supabase URL.",
+    })
+  }
+
+  if (isPlaceholderValue(data.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+      message: "Team/production mode requires a real Supabase anon key.",
+    })
+  }
+
+  if (isPlaceholderValue(data.SUPABASE_SERVICE_ROLE_KEY)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["SUPABASE_SERVICE_ROLE_KEY"],
+      message: "Team/production mode requires a real Supabase service role key.",
+    })
+  }
 })
 
 const getEnv = () => {
@@ -36,10 +78,17 @@ const getEnv = () => {
   })
 
   if (!result.success) {
-    const isBuildOrTest =
-      process.env.NEXT_PHASE === "phase-production-build" ||
-      process.env.NODE_ENV === "test" ||
-      process.env.SKIP_ENV_VALIDATION === "true"
+    const requestedAccessMode = process.env.APP_ACCESS_MODE
+    const allowsMockEnvFallback = !requestedAccessMode || requestedAccessMode === "demo"
+    const isBuild =
+      (process.env.NEXT_PHASE === "phase-production-build" ||
+        process.env.NODE_ENV === "test") &&
+      allowsMockEnvFallback
+    const explicitNonProductionSkip =
+      process.env.SKIP_ENV_VALIDATION === "true" &&
+      process.env.NODE_ENV !== "production" &&
+      allowsMockEnvFallback
+    const isBuildOrTest = isBuild || explicitNonProductionSkip
 
     if (isBuildOrTest) {
       console.warn("⚠️ Invalid environment variables during build/test, using mock values.")

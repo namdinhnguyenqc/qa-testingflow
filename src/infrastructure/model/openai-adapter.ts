@@ -1,6 +1,15 @@
 import { ModelAdapter, ModelExecutionResult } from "./model-adapter"
 import { env } from "@/lib/env"
 
+const PLACEHOLDER_AI_KEYS = new Set(["mock", "dummy-ai-key", "your-ai-api-key"])
+const AI_CONFIGURATION_ERROR =
+  "AI provider is not configured for team/production mode. Mock output is disabled."
+
+const isPlaceholderAiKey = (value?: string) => {
+  if (!value) return true
+  return PLACEHOLDER_AI_KEYS.has(value.trim().toLowerCase())
+}
+
 export class OpenAICompatibleAdapter implements ModelAdapter {
   providerId = "openai-compatible"
 
@@ -12,8 +21,16 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     outputSchema: Record<string, any>
   }): Promise<ModelExecutionResult> {
     // 1. Kiểm tra nếu đang sử dụng Dummy Key -> Kích hoạt Mock Fallback thông minh
-    if (!env.AI_PROVIDER_API_KEY || env.AI_PROVIDER_API_KEY === "dummy-ai-key") {
+    if (env.APP_ACCESS_MODE === "demo" && isPlaceholderAiKey(env.AI_PROVIDER_API_KEY)) {
       return this.executeMockTask(input.outputSchema, input.context)
+    }
+
+    if (env.APP_ACCESS_MODE !== "demo" && isPlaceholderAiKey(env.AI_PROVIDER_API_KEY)) {
+      return {
+        rawOutput: "",
+        error: AI_CONFIGURATION_ERROR,
+        executionMode: "provider",
+      }
     }
 
     // 2. Thực hiện gọi API thật (OpenAI Compatible Endpoint)
@@ -58,12 +75,14 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       return {
         rawOutput,
         parsedOutput: cleanJson ? JSON.parse(cleanJson) : undefined,
+        executionMode: "provider",
       }
     } catch (error: any) {
       console.error("❌ OpenAI API call failed:", error)
       return {
         rawOutput: "",
         error: error.message || "Failed to communicate with AI provider",
+        executionMode: "provider",
       }
     }
   }
@@ -252,7 +271,8 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
     return {
       rawOutput: `\`\`\`json\n${JSON.stringify(mockJson, null, 2)}\n\`\`\``,
-      parsedOutput: mockJson
+      parsedOutput: mockJson,
+      executionMode: "mock",
     }
   }
 }
