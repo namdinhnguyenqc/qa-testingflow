@@ -44,7 +44,7 @@ export class InputService {
       source_type: "requirement_text",
       title: "Pasted Requirement Notes",
       text_content: trimmedText,
-      processing_status: "TEXT_AVAILABLE",
+      status: "TEXT_AVAILABLE",
     })
 
     // Trigger state check & update
@@ -101,11 +101,11 @@ export class InputService {
     )
 
     // 3. Save to database
-    // Default processing_status
-    let processingStatus: InputSource["processing_status"] = "UPLOADED"
+    // Default status
+    let status: InputSource["status"] = "UPLOADED"
     // text files are immediately available as text context, pdf/docx will be extracted later in Phase 01
     if ([".txt", ".md"].includes(ext)) {
-      processingStatus = "TEXT_AVAILABLE"
+      status = "TEXT_AVAILABLE"
     }
 
     const inputSource = await this.dbAdapter.createInputSource({
@@ -118,7 +118,7 @@ export class InputService {
       mime_type: mimeType,
       size_bytes: sizeBytes,
       text_content: [".txt", ".md"].includes(ext) ? fileBuffer.toString("utf-8") : undefined,
-      processing_status: processingStatus,
+      status: status,
     })
 
     // Trigger state check & update

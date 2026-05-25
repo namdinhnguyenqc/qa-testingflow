@@ -96,7 +96,6 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
     // Cập nhật trạng thái Feature thành TESTCASE_DRAFTED
     await this.dbAdapter.updateFeature(featureId, {
       status: "TESTCASE_DRAFTED",
-      current_step_key: "testcase_review",
     })
 
     return {
@@ -185,7 +184,6 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
     // 5. Cập nhật Feature thành COMPLETED
     await this.dbAdapter.updateFeature(featureId, {
       status: "COMPLETED",
-      current_step_key: "export",
     })
 
     return finalArtifact

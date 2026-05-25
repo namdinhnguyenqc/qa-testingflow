@@ -15,8 +15,9 @@ describe("Feature State Machine Rules", () => {
         feature_id: "f1",
         source_type: "requirement_text",
         text_content: "This is a detailed requirement specification for user login.",
-        processing_status: "TEXT_AVAILABLE",
+        status: "TEXT_AVAILABLE",
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ]
     const status = determineFeatureStatus("DRAFT", sources)
@@ -30,8 +31,9 @@ describe("Feature State Machine Rules", () => {
         feature_id: "f1",
         source_type: "requirement_text",
         text_content: "short", // < 10 chars
-        processing_status: "TEXT_AVAILABLE",
+        status: "TEXT_AVAILABLE",
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ]
     const status = determineFeatureStatus("DRAFT", sources)
@@ -45,8 +47,9 @@ describe("Feature State Machine Rules", () => {
         feature_id: "f1",
         source_type: "requirement_file",
         original_file_name: "prd.txt",
-        processing_status: "TEXT_AVAILABLE",
+        status: "TEXT_AVAILABLE",
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ]
     const status = determineFeatureStatus("DRAFT", sources)
@@ -59,8 +62,9 @@ describe("Feature State Machine Rules", () => {
         id: "3",
         feature_id: "f1",
         source_type: "figma_image",
-        processing_status: "UPLOADED",
+        status: "UPLOADED",
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ]
     const status = determineFeatureStatus("DRAFT", sources)

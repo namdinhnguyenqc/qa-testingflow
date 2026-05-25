@@ -17,7 +17,7 @@ export function AnalysisPanel({ projectId, feature, onRefresh }: AnalysisPanelPr
   const [running, setRunning] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState(feature.selected_model_id || "gpt-4o")
+  const [selectedModel, setSelectedModel] = useState("gpt-4o")
 
   const fetchArtifact = useCallback(async () => {
     setErrorMsg(null)

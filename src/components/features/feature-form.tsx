@@ -12,8 +12,6 @@ import { Feature } from "@/domain/features/types"
 const featureSchema = z.object({
   name: z.string().min(1, "Feature name is required").max(100, "Feature name cannot exceed 100 characters"),
   description: z.string().max(500, "Description cannot exceed 500 characters").optional(),
-  workflow_key: z.string().default("manual_test_design"),
-  selected_model_id: z.string().default("gpt-4o"),
 })
 
 type FeatureFormValues = z.infer<typeof featureSchema>
@@ -40,8 +38,6 @@ export function FeatureForm({ projectId, feature, onSuccess, open, onOpenChange 
     defaultValues: {
       name: feature?.name || "",
       description: feature?.description || "",
-      workflow_key: feature?.workflow_key || "manual_test_design",
-      selected_model_id: feature?.selected_model_id || "gpt-4o",
     },
   })
 
@@ -120,35 +116,7 @@ export function FeatureForm({ projectId, feature, onSuccess, open, onOpenChange 
               {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
             </div>
 
-            {/* Workflow Key */}
-            <div className="space-y-1.5">
-              <label htmlFor="workflow_key" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Select Workflow
-              </label>
-              <select
-                id="workflow_key"
-                {...register("workflow_key")}
-                className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
-              >
-                <option value="manual_test_design">Manual Test Design Workflow (Standard MVP)</option>
-              </select>
-            </div>
 
-            {/* Model Key */}
-            <div className="space-y-1.5">
-              <label htmlFor="selected_model_id" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Select AI Engine Model Configuration
-              </label>
-              <select
-                id="selected_model_id"
-                {...register("selected_model_id")}
-                className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
-              >
-                <option value="gpt-4o">GPT-4o (OpenAI)</option>
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Anthropic)</option>
-                <option value="codex-model">Codex Model (OpenAI-compatible)</option>
-              </select>
-            </div>
 
             {/* Footer Buttons */}
             <div className="flex justify-end gap-3 pt-6 border-t border-border mt-6">

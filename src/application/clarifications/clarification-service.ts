@@ -40,7 +40,7 @@ export class ClarificationService {
 
     // 2. Gom toàn bộ active input sources làm context
     const sources = await this.dbAdapter.getInputSourcesByFeatureId(featureId)
-    const activeSources = sources.filter((s) => s.processing_status !== "REMOVED")
+    const activeSources = sources.filter((s) => s.status !== "REMOVED")
     
     let contextStr = "DANH SÁCH TÀI LIỆU ĐẦU VÀO:\n"
     activeSources.forEach((source, index) => {
@@ -99,7 +99,6 @@ export class ClarificationService {
 
     await this.dbAdapter.updateFeature(featureId, {
       status: nextStatus,
-      current_step_key: nextStatus === "NEEDS_CLARIFICATION" ? "clarification" : "feature_understanding",
     })
 
     return execution.artifact
@@ -144,7 +143,7 @@ export class ClarificationService {
 
     // 1. Gom context: Inputs + Q&A History
     const sources = await this.dbAdapter.getInputSourcesByFeatureId(featureId)
-    const activeSources = sources.filter((s) => s.processing_status !== "REMOVED")
+    const activeSources = sources.filter((s) => s.status !== "REMOVED")
     
     let contextStr = "=== INPUT DOCUMENTS ===\n"
     activeSources.forEach((source, idx) => {
@@ -192,7 +191,6 @@ export class ClarificationService {
 
     await this.dbAdapter.updateFeature(featureId, {
       status: nextStatus,
-      current_step_key: isReady ? "feature_understanding" : "clarification",
     })
 
     return execution.artifact
@@ -206,7 +204,6 @@ export class ClarificationService {
     
     await this.dbAdapter.updateFeature(featureId, {
       status: "UNDERSTANDING_CONFIRMED",
-      current_step_key: "testcase_generation",
     })
 
     return artifact

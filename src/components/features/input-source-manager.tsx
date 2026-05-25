@@ -25,7 +25,7 @@ export function InputSourceManager({ projectId, featureId, initialSources, onRef
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const activeSources = initialSources.filter((s) => s.processing_status !== "REMOVED")
+  const activeSources = initialSources.filter((s) => s.status !== "REMOVED")
 
   // === Xử lý Paste Text ===
   const handleSaveText = async () => {

@@ -41,7 +41,6 @@ export class SupabaseDbAdapter {
         {
           name: dto.name,
           description: dto.description,
-          default_model_id: dto.default_model_id,
         },
       ])
       .select()
@@ -57,7 +56,6 @@ export class SupabaseDbAdapter {
       .update({
         name: dto.name,
         description: dto.description,
-        default_model_id: dto.default_model_id,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -112,10 +110,7 @@ export class SupabaseDbAdapter {
           project_id: dto.project_id,
           name: dto.name,
           description: dto.description,
-          workflow_key: dto.workflow_key || "manual_test_design",
-          selected_model_id: dto.selected_model_id,
           status: "DRAFT",
-          current_step_key: "inputs",
         },
       ])
       .select()
@@ -131,9 +126,7 @@ export class SupabaseDbAdapter {
     }
     if (dto.name !== undefined) updateData.name = dto.name
     if (dto.description !== undefined) updateData.description = dto.description
-    if (dto.selected_model_id !== undefined) updateData.selected_model_id = dto.selected_model_id
     if (dto.status !== undefined) updateData.status = dto.status
-    if (dto.current_step_key !== undefined) updateData.current_step_key = dto.current_step_key
 
     const { data, error } = await supabaseServer
       .from("features")
@@ -182,7 +175,7 @@ export class SupabaseDbAdapter {
           mime_type: dto.mime_type,
           size_bytes: dto.size_bytes,
           text_content: dto.text_content,
-          processing_status: dto.processing_status || "UPLOADED",
+          status: dto.status || "UPLOADED",
         },
       ])
       .select()
@@ -192,10 +185,13 @@ export class SupabaseDbAdapter {
     return data
   }
 
-  async updateInputSourceStatus(id: string, status: InputSource["processing_status"]): Promise<InputSource> {
+  async updateInputSourceStatus(id: string, status: InputSource["status"]): Promise<InputSource> {
     const { data, error } = await supabaseServer
       .from("input_sources")
-      .update({ processing_status: status })
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .select()
       .single()

@@ -69,7 +69,7 @@ export function TestCasePanel({ projectId, feature, onRefresh }: TestCasePanelPr
       const result = await generateTestCasesAction(
         projectId,
         feature.id,
-        feature.selected_model_id || "gpt-4o",
+        "gpt-4o",
         isDraft
       )
       if (result.error) throw new Error(result.error)

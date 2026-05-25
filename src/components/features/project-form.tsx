@@ -12,7 +12,6 @@ import { Project } from "@/domain/projects/types"
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100, "Project name cannot exceed 100 characters"),
   description: z.string().max(500, "Description cannot exceed 500 characters").optional(),
-  default_model_id: z.string().default("gpt-4o"),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
@@ -38,7 +37,6 @@ export function ProjectForm({ project, onSuccess, open, onOpenChange }: ProjectF
     defaultValues: {
       name: project?.name || "",
       description: project?.description || "",
-      default_model_id: project?.default_model_id || "gpt-4o",
     },
   })
 
@@ -114,21 +112,7 @@ export function ProjectForm({ project, onSuccess, open, onOpenChange }: ProjectF
               {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
             </div>
 
-            {/* Default Model */}
-            <div className="space-y-1.5">
-              <label htmlFor="default_model_id" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Default AI Model Configuration
-              </label>
-              <select
-                id="default_model_id"
-                {...register("default_model_id")}
-                className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
-              >
-                <option value="gpt-4o">GPT-4o (OpenAI)</option>
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Anthropic)</option>
-                <option value="codex-model">Codex Model (OpenAI-compatible)</option>
-              </select>
-            </div>
+
 
             {/* Footer Buttons */}
             <div className="flex justify-end gap-3 pt-6 border-t border-border mt-6">

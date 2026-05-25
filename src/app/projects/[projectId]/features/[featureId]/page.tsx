@@ -185,7 +185,7 @@ export default function FeatureWorkspace() {
             <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium px-3 py-1.5 rounded-lg bg-secondary border border-border">
                 <Cpu className="w-4 h-4 text-primary" />
-                <span>Engine: {feature.selected_model_id || "gpt-4o"}</span>
+                <span>Engine: gpt-4o</span>
               </div>
             </div>
           </div>

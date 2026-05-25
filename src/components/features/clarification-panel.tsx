@@ -91,7 +91,7 @@ export function ClarificationPanel({ projectId, feature, onRefresh }: Clarificat
       }
 
       // 2. Chạy re-evaluate readiness & feature understanding
-      const reResult = await runReadinessAndUnderstandingAction(projectId, feature.id, feature.selected_model_id || "gpt-4o")
+      const reResult = await runReadinessAndUnderstandingAction(projectId, feature.id, "gpt-4o")
       if (reResult.error) throw new Error(reResult.error)
 
       setAnswers({})

@@ -31,7 +31,6 @@ export class FeatureService {
     return this.dbAdapter.createFeature({
       ...dto,
       name: trimmedName,
-      workflow_key: dto.workflow_key || "manual_test_design",
     })
   }
 

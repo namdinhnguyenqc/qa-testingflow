@@ -122,7 +122,7 @@ export async function getInputSourcesAction(featureId: string) {
     // Sinh signed urls cho các files nếu có
     const sourcesWithSignedUrls = await Promise.all(
       sources.map(async (source) => {
-        if (source.storage_path && source.processing_status !== "REMOVED") {
+        if (source.storage_path && source.status !== "REMOVED") {
           try {
             const signedUrl = await inputService.getSignedUrl(source.storage_path)
             return { ...source, signedUrl }

@@ -117,7 +117,7 @@ export default function ProjectDetail() {
               <div className="flex items-center gap-3">
                 <h1 className="text-xl font-bold text-foreground tracking-tight">{project.name}</h1>
                 <div className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 rounded-full bg-secondary border border-border uppercase">
-                  Default AI: {project.default_model_id || "gpt-4o"}
+                  Default AI: gpt-4o
                 </div>
               </div>
               <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">

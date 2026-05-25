@@ -25,8 +25,9 @@ export interface InputSource {
   mime_type?: string
   size_bytes?: number
   text_content?: string
-  processing_status: ProcessingStatus
+  status: ProcessingStatus
   created_at: string
+  updated_at: string
 }
 
 export interface CreateInputSourceDTO {
@@ -39,5 +40,5 @@ export interface CreateInputSourceDTO {
   mime_type?: string
   size_bytes?: number
   text_content?: string
-  processing_status?: ProcessingStatus
+  status?: ProcessingStatus
 }

@@ -13,7 +13,7 @@ export function determineFeatureStatus(
     return currentStatus
   }
 
-  const activeSources = sources.filter((s) => s.processing_status !== "REMOVED")
+  const activeSources = sources.filter((s) => s.status !== "REMOVED")
 
   // Kiểm tra xem có bất kỳ nguồn requirement hợp lệ nào không
   const hasValidRequirement = activeSources.some(
@@ -22,7 +22,7 @@ export function determineFeatureStatus(
         source.text_content &&
         source.text_content.trim().length >= 10) ||
       (source.source_type === "requirement_file" &&
-        source.processing_status === "TEXT_AVAILABLE")
+        source.status === "TEXT_AVAILABLE")
   )
 
   if (hasValidRequirement) {

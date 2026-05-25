@@ -72,10 +72,7 @@ export function FeatureTable({ projectId, features, onRefresh }: FeatureTablePro
         <thead>
           <tr className="border-b border-border bg-secondary/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             <th className="px-6 py-4">Feature Name</th>
-            <th className="px-6 py-4">Workflow</th>
-            <th className="px-6 py-4">Current Step</th>
             <th className="px-6 py-4">Status</th>
-            <th className="px-6 py-4">AI Model</th>
             <th className="px-6 py-4">Updated</th>
             <th className="px-6 py-4 text-right">Actions</th>
           </tr>
@@ -99,31 +96,11 @@ export function FeatureTable({ projectId, features, onRefresh }: FeatureTablePro
                 )}
               </td>
 
-              {/* Workflow */}
-              <td className="px-6 py-4 text-muted-foreground text-xs font-medium">
-                {feature.workflow_key === "manual_test_design" ? "Manual Test Design" : feature.workflow_key}
-              </td>
-
-              {/* Current Step */}
-              <td className="px-6 py-4">
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary border border-border text-foreground">
-                  {feature.current_step_key}
-                </span>
-              </td>
-
               {/* Status */}
               <td className="px-6 py-4">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusStyle(feature.status)}`}>
                   {getStatusLabel(feature.status)}
                 </span>
-              </td>
-
-              {/* Model */}
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                  <Cpu className="w-3.5 h-3.5 text-primary" />
-                  {feature.selected_model_id || "default"}
-                </div>
               </td>
 
               {/* Updated At */}
