@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Plus, Edit, Trash2, ArrowLeft, Loader2, Info } from "lucide-react"
 import Link from "next/link"
@@ -25,7 +25,7 @@ export default function ProjectDetail() {
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
   const [isNewFeatureOpen, setIsNewFeatureOpen] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     setErrorMsg(null)
     try {
@@ -44,11 +44,11 @@ export default function ProjectDetail() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId])
 
   useEffect(() => {
     fetchData()
-  }, [projectId])
+  }, [fetchData])
 
   const handleDeleteProject = async () => {
     if (confirm("Are you sure you want to delete this Project? ALL feature workspaces and attachments inside will be lost forever.")) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ShieldCheck, Loader2, Sparkles, AlertTriangle, ArrowRight, CornerDownRight } from "lucide-react"
 import { getLatestArtifactByTypeAction, confirmUnderstandingAction } from "@/app/actions"
 import { Feature } from "@/domain/features/types"
@@ -18,7 +18,7 @@ export function UnderstandingPanel({ projectId, feature, onRefresh }: Understand
   const [confirming, setConfirming] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const fetchArtifact = async () => {
+  const fetchArtifact = useCallback(async () => {
     setErrorMsg(null)
     const result = await getLatestArtifactByTypeAction(feature.id, "FEATURE_UNDERSTANDING")
     if (result.error) {
@@ -27,11 +27,11 @@ export function UnderstandingPanel({ projectId, feature, onRefresh }: Understand
       setArtifact(result.data || null)
     }
     setLoading(false)
-  }
+  }, [feature.id])
 
   useEffect(() => {
     fetchArtifact()
-  }, [feature.id])
+  }, [fetchArtifact])
 
   const handleConfirm = async () => {
     if (!artifact) return

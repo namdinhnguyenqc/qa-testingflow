@@ -2,6 +2,7 @@ import { SupabaseDbAdapter } from "@/infrastructure/database/supabase-db-adapter
 import { AiExecutionService } from "../ai/ai-execution-service"
 import { TestCase, CreateTestCaseDTO } from "@/domain/testcases/types"
 import { Artifact } from "@/domain/artifacts/types"
+import { validateEditableTestCases } from "@/domain/testcases/validation"
 
 export class TestCaseService {
   private dbAdapter: SupabaseDbAdapter
@@ -109,6 +110,18 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
    * Cập nhật chỉnh sửa inline của tester cho một testcase cụ thể
    */
   async updateTestCase(id: string, updates: Partial<Omit<TestCase, "id" | "created_at">>): Promise<TestCase> {
+    if (typeof updates.test_case_code === "string" && updates.test_case_code.trim().length === 0) {
+      throw new Error("Test Case ID cannot be empty.")
+    }
+    if (typeof updates.module === "string" && updates.module.trim().length === 0) {
+      throw new Error("Module cannot be empty.")
+    }
+    if (typeof updates.scenario === "string" && updates.scenario.trim().length === 0) {
+      throw new Error("Scenario cannot be empty.")
+    }
+    if (typeof updates.expected_result === "string" && updates.expected_result.trim().length === 0) {
+      throw new Error("Expected Result cannot be empty.")
+    }
     return this.dbAdapter.updateTestCase(id, updates)
   }
 
@@ -116,6 +129,15 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
    * Tạo dòng kịch bản thủ công mới (Add row)
    */
   async createManualTestCase(dto: CreateTestCaseDTO): Promise<TestCase> {
+    validateEditableTestCases([
+      {
+        test_case_code: dto.test_case_code,
+        module: dto.module,
+        scenario: dto.scenario,
+        expected_result: dto.expected_result,
+        steps_json: dto.steps_json,
+      },
+    ])
     const list = await this.dbAdapter.saveTestCases([dto])
     return list[0]
   }
@@ -133,6 +155,7 @@ ${JSON.stringify(understandingArtifact?.content_json || { note: "Draft test case
   async saveFinalVersion(featureId: string, sourceArtifactId: string): Promise<Artifact> {
     // 1. Lấy toàn bộ các dòng testcases hiện tại của source artifact (chứa các bản chỉnh sửa inline của tester)
     const currentCases = await this.dbAdapter.getTestCasesByArtifactId(sourceArtifactId)
+    validateEditableTestCases(currentCases)
 
     // 2. Map thành content_json của artifact mới
     const contentJson = {

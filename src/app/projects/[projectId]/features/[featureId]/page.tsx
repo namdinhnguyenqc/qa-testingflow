@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Cpu, Loader2, Lock, ShieldCheck, Sparkles, MessageSquare, FileSpreadsheet } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { useParams } from "next/navigation"
+import { ArrowLeft, Clock3, Cpu, Loader2, Lock, ShieldCheck, Sparkles, MessageSquare, FileSpreadsheet } from "lucide-react"
 import Link from "next/link"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -11,6 +11,7 @@ import { AnalysisPanel } from "@/components/features/analysis-panel"
 import { ClarificationPanel } from "@/components/features/clarification-panel"
 import { UnderstandingPanel } from "@/components/features/understanding-panel"
 import { TestCasePanel } from "@/components/features/testcase-panel"
+import { HistoryPanel } from "@/components/features/history-panel"
 import { getFeatureByIdAction, getProjectByIdAction, getInputSourcesAction } from "@/app/actions"
 import { Project } from "@/domain/projects/types"
 import { Feature } from "@/domain/features/types"
@@ -19,7 +20,6 @@ import { cn } from "@/lib/utils"
 
 export default function FeatureWorkspace() {
   const { projectId, featureId } = useParams() as { projectId: string; featureId: string }
-  const router = useRouter()
 
   const [project, setProject] = useState<Project | null>(null)
   const [feature, setFeature] = useState<Feature | null>(null)
@@ -29,7 +29,7 @@ export default function FeatureWorkspace() {
 
   const [activeTab, setActiveTab] = useState<"inputs" | "analysis" | "clarification" | "understanding" | "testcases" | "history">("inputs")
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setErrorMsg(null)
     try {
       const featResult = await getFeatureByIdAction(featureId)
@@ -50,11 +50,11 @@ export default function FeatureWorkspace() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [featureId, projectId])
 
   useEffect(() => {
     fetchData()
-  }, [featureId, projectId])
+  }, [fetchData])
 
   // Tự động chuyển tab dựa trên status của feature (chỉ hỗ trợ chuyển hướng ban đầu để trải nghiệm mượt)
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function FeatureWorkspace() {
     } else if (status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED") {
       setActiveTab("testcases")
     }
-  }, [feature?.status])
+  }, [feature])
 
   const getStatusStyle = (status?: Feature["status"]) => {
     if (!status) return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
@@ -333,6 +333,19 @@ export default function FeatureWorkspace() {
                   <Lock className="w-3 h-3" />
                 </span>
               )}
+
+              <button
+                onClick={() => setActiveTab("history")}
+                className={cn(
+                  "px-4 py-2 border-b-2 transition-all font-semibold cursor-pointer shrink-0 flex items-center gap-1.5",
+                  activeTab === "history"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Clock3 className="w-3.5 h-3.5 text-primary" />
+                History
+              </button>
             </div>
 
             {/* Tab Panels */}
@@ -375,6 +388,10 @@ export default function FeatureWorkspace() {
                 feature={feature}
                 onRefresh={fetchData}
               />
+            )}
+
+            {activeTab === "history" && (
+              <HistoryPanel featureId={feature.id} />
             )}
           </div>
         </main>

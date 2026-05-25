@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Play, Loader2, Sparkles, Cpu, AlertTriangle, ShieldCheck, HelpCircle } from "lucide-react"
 import { runRequirementAnalysisAction, getLatestArtifactByTypeAction } from "@/app/actions"
 import { Feature } from "@/domain/features/types"
@@ -19,7 +19,7 @@ export function AnalysisPanel({ projectId, feature, onRefresh }: AnalysisPanelPr
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(feature.selected_model_id || "gpt-4o")
 
-  const fetchArtifact = async () => {
+  const fetchArtifact = useCallback(async () => {
     setErrorMsg(null)
     const result = await getLatestArtifactByTypeAction(feature.id, "REQUIREMENT_ANALYSIS")
     if (result.error) {
@@ -28,11 +28,11 @@ export function AnalysisPanel({ projectId, feature, onRefresh }: AnalysisPanelPr
       setArtifact(result.data || null)
     }
     setLoading(false)
-  }
+  }, [feature.id])
 
   useEffect(() => {
     fetchArtifact()
-  }, [feature.id])
+  }, [fetchArtifact])
 
   const handleRunAnalysis = async () => {
     setRunning(true)

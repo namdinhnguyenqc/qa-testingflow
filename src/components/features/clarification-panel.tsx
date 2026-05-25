@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { HelpCircle, Loader2, Play, CheckCircle2, MessageSquare, AlertCircle, AlertTriangle } from "lucide-react"
 import { getClarificationThreadAction, submitUserAnswersAction, runReadinessAndUnderstandingAction } from "@/app/actions"
 import { Feature } from "@/domain/features/types"
@@ -22,7 +22,7 @@ export function ClarificationPanel({ projectId, feature, onRefresh }: Clarificat
   // Lưu trữ các câu trả lời đang điền
   const [answers, setAnswers] = useState<Record<string, string>>({})
 
-  const fetchThread = async () => {
+  const fetchThread = useCallback(async () => {
     setErrorMsg(null)
     const result = await getClarificationThreadAction(feature.id)
     if (result.error) {
@@ -32,11 +32,11 @@ export function ClarificationPanel({ projectId, feature, onRefresh }: Clarificat
       setMessages(result.data.messages || [])
     }
     setLoading(false)
-  }
+  }, [feature.id])
 
   useEffect(() => {
     fetchThread()
-  }, [feature.id])
+  }, [fetchThread])
 
   // Lọc lấy danh sách câu hỏi AI đặt ra
   const aiQuestions = messages.filter((m) => m.sender_type === "AI" && m.question_key)

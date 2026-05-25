@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Play, Loader2, Sparkles, AlertTriangle, FileSpreadsheet, Plus, Trash2, Save, CheckCircle2 } from "lucide-react"
 import { getLatestArtifactByTypeAction, generateTestCasesAction, getTestCasesAction, updateTestCaseAction, createManualTestCaseAction, deleteTestCaseAction, saveFinalTestCaseVersionAction } from "@/app/actions"
 import { Feature } from "@/domain/features/types"
@@ -25,7 +25,7 @@ export function TestCasePanel({ projectId, feature, onRefresh }: TestCasePanelPr
 
   const [editingCell, setEditingCell] = useState<{ id: string; field: keyof TestCase } | null>(null)
 
-  const fetchArtifactAndTestCases = async () => {
+  const fetchArtifactAndTestCases = useCallback(async () => {
     setErrorMsg(null)
     try {
       // 1. Lấy artifact TESTCASE_FINAL (nếu đã chốt) hoặc TESTCASE_SET (nếu đang draft) gần nhất
@@ -55,11 +55,11 @@ export function TestCasePanel({ projectId, feature, onRefresh }: TestCasePanelPr
     } finally {
       setLoading(false)
     }
-  }
+  }, [feature.id])
 
   useEffect(() => {
     fetchArtifactAndTestCases()
-  }, [feature.id])
+  }, [fetchArtifactAndTestCases])
 
   // === AI sinh kịch bản kiểm thử ===
   const handleGenerateTestCases = async (isDraft = false) => {

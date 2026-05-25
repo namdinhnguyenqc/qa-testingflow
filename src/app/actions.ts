@@ -224,6 +224,19 @@ export async function getLatestArtifactByTypeAction(featureId: string, type: any
   }
 }
 
+export async function getFeatureHistoryAction(featureId: string) {
+  try {
+    const dbAdapter = clarificationService["dbAdapter"]
+    const [stepRuns, artifacts] = await Promise.all([
+      dbAdapter.getStepRunsByFeatureId(featureId),
+      dbAdapter.getArtifactsByFeatureId(featureId),
+    ])
+    return { data: { stepRuns, artifacts } }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
 export async function generateTestCasesAction(
   projectId: string,
   featureId: string,
