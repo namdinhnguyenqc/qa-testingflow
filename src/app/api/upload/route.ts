@@ -15,6 +15,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Bảo mật: Validate kích thước file trước khi nạp vào RAM (RAM Exhaustion Guard)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "File size exceeds 10MB limit (Max: 10MB)" },
+        { status: 400 }
+      )
+    }
+
     const inputService = new InputService()
     
     // Đọc file thành Buffer

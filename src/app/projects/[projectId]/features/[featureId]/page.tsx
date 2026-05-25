@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, Cpu, Loader2, Lock, ShieldCheck, Sparkles, MessageSquare, FileSpreadsheet } from "lucide-react"
 import Link from "next/link"
@@ -29,7 +29,7 @@ export default function FeatureWorkspace() {
 
   const [activeTab, setActiveTab] = useState<"inputs" | "analysis" | "clarification" | "understanding" | "testcases" | "history">("inputs")
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setErrorMsg(null)
     try {
       const featResult = await getFeatureByIdAction(featureId)
@@ -50,11 +50,11 @@ export default function FeatureWorkspace() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [featureId, projectId])
 
   useEffect(() => {
     fetchData()
-  }, [featureId, projectId])
+  }, [fetchData])
 
   // Tự động chuyển tab dựa trên status của feature (chỉ hỗ trợ chuyển hướng ban đầu để trải nghiệm mượt)
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function FeatureWorkspace() {
     } else if (status === "UNDERSTANDING_CONFIRMED" || status === "TESTCASE_GENERATING" || status === "TESTCASE_DRAFTED" || status === "COMPLETED") {
       setActiveTab("testcases")
     }
-  }, [feature?.status])
+  }, [feature])
 
   const getStatusStyle = (status?: Feature["status"]) => {
     if (!status) return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
