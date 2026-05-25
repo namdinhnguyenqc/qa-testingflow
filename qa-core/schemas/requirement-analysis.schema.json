@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RequirementAnalysis",
+  "type": "object",
+  "properties": {
+    "feature_goal": {
+      "type": "string",
+      "description": "Mục tiêu tổng quan của tính năng kiểm thử."
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["role", "description"]
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "steps": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["name", "steps"]
+      }
+    },
+    "validations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": { "type": "string" },
+          "rules": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["field", "rules"]
+      }
+    },
+    "business_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule": { "type": "string" },
+          "source": { "type": "string" }
+        },
+        "required": ["rule", "source"]
+      }
+    },
+    "missing_critical": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_key": { "type": "string" },
+          "description": { "type": "string" },
+          "reason_critical": { "type": "string" }
+        },
+        "required": ["rule_key", "description", "reason_critical"]
+      }
+    },
+    "missing_non_critical": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_key": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["rule_key", "description"]
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": { "type": "string" }
+        },
+        "required": ["sources", "description"]
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "required": ["description", "reason"]
+      }
+    }
+  },
+  "required": [
+    "feature_goal",
+    "actors",
+    "preconditions",
+    "flows",
+    "validations",
+    "business_rules",
+    "missing_critical",
+    "missing_non_critical",
+    "conflicts",
+    "assumptions"
+  ]
+}

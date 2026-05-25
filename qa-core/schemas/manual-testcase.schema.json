@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ManualTestcases",
+  "type": "object",
+  "properties": {
+    "test_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "test_case_code": { "type": "string" },
+          "module": { "type": "string" },
+          "scenario": { "type": "string" },
+          "case_type": {
+            "type": "string",
+            "enum": ["Happy", "Validation", "Negative", "Boundary", "Permission", "UI", "Error Handling", "Regression"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["P0", "P1", "P2", "P3"]
+          },
+          "preconditions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step_no": { "type": "integer" },
+                "action": { "type": "string" },
+                "expected_result": { "type": "string" }
+              },
+              "required": ["step_no", "action", "expected_result"]
+            }
+          },
+          "test_data": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expected_result": { "type": "string" },
+          "automation_candidate": { "type": "boolean" },
+          "requirement_mapping": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "assumptions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "test_case_code",
+          "module",
+          "scenario",
+          "case_type",
+          "priority",
+          "preconditions",
+          "steps",
+          "expected_result",
+          "automation_candidate"
+        ]
+      }
+    }
+  },
+  "required": ["test_cases"]
+}
