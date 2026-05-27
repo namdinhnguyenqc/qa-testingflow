@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UiExplorationSnapshot",
+  "type": "object",
+  "required": ["target_url", "screens", "observed_differences"],
+  "properties": {
+    "target_url": { "type": "string", "format": "uri" },
+    "screens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "url", "controls", "messages", "navigation_targets"],
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string" },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["role", "label"],
+              "properties": {
+                "role": { "type": "string" },
+                "label": { "type": "string" },
+                "required": { "type": "boolean" },
+                "disabled": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "navigation_targets": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "observed_differences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "source", "description"],
+        "properties": {
+          "severity": { "enum": ["critical", "major", "minor"] },
+          "source": { "enum": ["docs", "figma", "ui"] },
+          "description": { "type": "string" },
+          "suggested_clarification": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

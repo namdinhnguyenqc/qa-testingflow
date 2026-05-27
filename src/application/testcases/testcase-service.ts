@@ -3,6 +3,7 @@ import { AiExecutionService } from "../ai/ai-execution-service"
 import { TestCase, CreateTestCaseDTO } from "@/domain/testcases/types"
 import { Artifact } from "@/domain/artifacts/types"
 import { validateEditableTestCases } from "@/domain/testcases/validation"
+import { diffTestCaseSets, TestCaseSetDiff } from "@/domain/testcases/diff"
 
 export class TestCaseService {
   private dbAdapter: SupabaseDbAdapter
@@ -18,6 +19,15 @@ export class TestCaseService {
    */
   async getTestCases(artifactId: string): Promise<TestCase[]> {
     return this.dbAdapter.getTestCasesByArtifactId(artifactId)
+  }
+
+  async getGeneratedVsFinalDiff(generatedArtifactId: string, finalArtifactId: string): Promise<TestCaseSetDiff> {
+    const [generatedCases, finalCases] = await Promise.all([
+      this.dbAdapter.getTestCasesByArtifactId(generatedArtifactId),
+      this.dbAdapter.getTestCasesByArtifactId(finalArtifactId),
+    ])
+
+    return diffTestCaseSets(generatedCases, finalCases)
   }
 
   private async assertOfficialTestcaseGate(featureId: string): Promise<Artifact> {

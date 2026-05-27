@@ -21,6 +21,7 @@ Trích xuất những gì đã được xác định từ nguồn đầu vào, c
 - Requirement text/file content có thể đọc được.
 - Figma image/PDF notes hoặc description đã cung cấp.
 - API docs/staging URL chỉ khi được truyền vào step.
+- Authorized UI exploration artifact when captured by the external worker.
 - Prior clarification answers nếu đây là lần phân tích lại.
 
 ## Mandatory Processing Rules
@@ -42,7 +43,8 @@ Trích xuất những gì đã được xác định từ nguồn đầu vào, c
    - Permission/state/error handling nếu nguồn đề cập.
 3. Mọi missing item ảnh hưởng pass/fail hoặc expected result phải đánh dấu critical.
 4. Nội dung xuất hiện ở Figma nhưng không có logic trong Docs phải ghi là conflict/missing logic, không coi là rule hoàn chỉnh.
-5. Nêu source reference cho phát hiện quan trọng nếu context hỗ trợ.
+5. Nội dung chỉ quan sát thấy ở UI thật phải ghi là UI observation, không tự động biến thành confirmed business rule nếu Docs/Figma không xác nhận.
+6. Nêu source reference cho phát hiện quan trọng nếu context hỗ trợ.
 
 ## Forbidden Behaviours
 

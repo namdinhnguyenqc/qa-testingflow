@@ -27,7 +27,7 @@
 
 - Key: `requirement_analysis`
 - Skill: `qa-core/skills/common/requirement-reader.skill.md`
-- Input: Normalized input sources.
+- Input: Normalized input sources; optional authorized `UI_EXPLORATION` artifact.
 - Output contract: Requirement Analysis.
 - Exit condition: Structured output valid.
 

@@ -6,6 +6,20 @@ import { WorkflowRun, CreateWorkflowRunDTO, StepRun, CreateStepRunDTO } from "@/
 import { Artifact, CreateArtifactDTO } from "@/domain/artifacts/types"
 import { ClarificationThread, CreateThreadDTO, ClarificationMessage, CreateMessageDTO } from "@/domain/clarifications/types"
 import { TestCase, CreateTestCaseDTO } from "@/domain/testcases/types"
+import {
+  ArtifactFeedback,
+  CreateArtifactFeedbackDTO,
+  CreateEvaluationResultDTO,
+  CreateEvaluationRunDTO,
+  EvaluationResult,
+  EvaluationRun,
+} from "@/domain/evaluations/types"
+import {
+  CreateFeatureEnvironmentDTO,
+  CreateUiExplorationJobDTO,
+  FeatureEnvironment,
+  UiExplorationJob,
+} from "@/domain/ui-exploration/types"
 
 export class SupabaseDbAdapter {
   // === Projects CRUD ===
@@ -523,5 +537,196 @@ export class SupabaseDbAdapter {
       .eq("id", id)
 
     if (error) throw new Error(`Failed to delete test case ${id}: ${error.message}`)
+  }
+
+  // === Phase 02 Evaluation & Feedback CRUD ===
+
+  async createArtifactFeedback(dto: CreateArtifactFeedbackDTO): Promise<ArtifactFeedback> {
+    const { data, error } = await supabaseServer
+      .from("artifact_feedback")
+      .insert([
+        {
+          artifact_id: dto.artifact_id,
+          feature_id: dto.feature_id,
+          generated_artifact_id: dto.generated_artifact_id,
+          final_artifact_id: dto.final_artifact_id,
+          rating: dto.rating,
+          issue_categories: dto.issue_categories || [],
+          comment: dto.comment,
+          is_golden_candidate: dto.is_golden_candidate || false,
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to create artifact feedback: ${error.message}`)
+    return data
+  }
+
+  async getArtifactFeedbackByArtifactId(artifactId: string): Promise<ArtifactFeedback[]> {
+    const { data, error } = await supabaseServer
+      .from("artifact_feedback")
+      .select("*")
+      .eq("artifact_id", artifactId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch artifact feedback: ${error.message}`)
+    return data || []
+  }
+
+  async getArtifactFeedbackByFeatureId(featureId: string): Promise<ArtifactFeedback[]> {
+    const { data, error } = await supabaseServer
+      .from("artifact_feedback")
+      .select("*")
+      .eq("feature_id", featureId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch feature feedback: ${error.message}`)
+    return data || []
+  }
+
+  async createEvaluationRun(dto: CreateEvaluationRunDTO): Promise<EvaluationRun> {
+    const { data, error } = await supabaseServer
+      .from("evaluation_runs")
+      .insert([
+        {
+          feature_id: dto.feature_id,
+          step_key: dto.step_key,
+          skill_file_path: dto.skill_file_path,
+          skill_revision: dto.skill_revision,
+          schema_key: dto.schema_key,
+          schema_version: dto.schema_version,
+          model_a_id: dto.model_a_id,
+          model_b_id: dto.model_b_id,
+          input_snapshot_json: dto.input_snapshot_json,
+          status: dto.status || "COMPLETED",
+          completed_at: dto.status === "QUEUED" || dto.status === "RUNNING" ? null : new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to create evaluation run: ${error.message}`)
+    return data
+  }
+
+  async createEvaluationResult(dto: CreateEvaluationResultDTO): Promise<EvaluationResult> {
+    const { data, error } = await supabaseServer
+      .from("evaluation_results")
+      .insert([
+        {
+          evaluation_run_id: dto.evaluation_run_id,
+          feature_id: dto.feature_id,
+          model_id: dto.model_id,
+          artifact_id: dto.artifact_id,
+          output_json: dto.output_json,
+          validation_status: dto.validation_status || "VALID",
+          error_summary: dto.error_summary,
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to create evaluation result: ${error.message}`)
+    return data
+  }
+
+  async getEvaluationRunsByFeatureId(featureId: string): Promise<EvaluationRun[]> {
+    const { data, error } = await supabaseServer
+      .from("evaluation_runs")
+      .select("*")
+      .eq("feature_id", featureId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch evaluation runs: ${error.message}`)
+    return data || []
+  }
+
+  async getEvaluationResultsByFeatureId(featureId: string): Promise<EvaluationResult[]> {
+    const { data, error } = await supabaseServer
+      .from("evaluation_results")
+      .select("*")
+      .eq("feature_id", featureId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch evaluation results: ${error.message}`)
+    return data || []
+  }
+
+  // === Phase 03 UI Exploration CRUD ===
+
+  async createFeatureEnvironment(dto: CreateFeatureEnvironmentDTO): Promise<FeatureEnvironment> {
+    const { data, error } = await supabaseServer
+      .from("feature_environments")
+      .insert([
+        {
+          feature_id: dto.feature_id,
+          name: dto.name || "Staging",
+          base_url: dto.base_url,
+          allowed_domains: dto.allowed_domains,
+          is_active: dto.is_active ?? true,
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to create feature environment: ${error.message}`)
+    return data
+  }
+
+  async getFeatureEnvironments(featureId: string): Promise<FeatureEnvironment[]> {
+    const { data, error } = await supabaseServer
+      .from("feature_environments")
+      .select("*")
+      .eq("feature_id", featureId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch feature environments: ${error.message}`)
+    return data || []
+  }
+
+  async getFeatureEnvironmentById(id: string): Promise<FeatureEnvironment | null> {
+    const { data, error } = await supabaseServer
+      .from("feature_environments")
+      .select("*")
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      if (error.code === "PGRST116") return null
+      throw new Error(`Failed to fetch feature environment ${id}: ${error.message}`)
+    }
+    return data
+  }
+
+  async createUiExplorationJob(dto: CreateUiExplorationJobDTO): Promise<UiExplorationJob> {
+    const { data, error } = await supabaseServer
+      .from("ui_exploration_jobs")
+      .insert([
+        {
+          feature_id: dto.feature_id,
+          environment_id: dto.environment_id,
+          target_url: dto.target_url,
+          allowed_domains: dto.allowed_domains,
+          status: dto.status || "QUEUED",
+          progress_message: dto.progress_message || "Queued for external Playwright MCP worker.",
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to create UI exploration job: ${error.message}`)
+    return data
+  }
+
+  async getUiExplorationJobs(featureId: string): Promise<UiExplorationJob[]> {
+    const { data, error } = await supabaseServer
+      .from("ui_exploration_jobs")
+      .select("*")
+      .eq("feature_id", featureId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch UI exploration jobs: ${error.message}`)
+    return data || []
   }
 }

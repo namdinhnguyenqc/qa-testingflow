@@ -6,15 +6,21 @@ import { FeatureService } from "@/application/features/feature-service"
 import { InputService } from "@/application/inputs/input-service"
 import { ClarificationService } from "@/application/clarifications/clarification-service"
 import { TestCaseService } from "@/application/testcases/testcase-service"
+import { EvaluationService } from "@/application/evaluations/evaluation-service"
+import { UiExplorationService } from "@/application/ui-exploration/ui-exploration-service"
 import { CreateProjectDTO, UpdateProjectDTO } from "@/domain/projects/types"
 import { CreateFeatureDTO, UpdateFeatureDTO } from "@/domain/features/types"
 import { CreateTestCaseDTO } from "@/domain/testcases/types"
+import { CreateArtifactFeedbackDTO } from "@/domain/evaluations/types"
+import { CreateFeatureEnvironmentDTO } from "@/domain/ui-exploration/types"
 
 const projectService = new ProjectService()
 const featureService = new FeatureService()
 const inputService = new InputService()
 const clarificationService = new ClarificationService()
 const testCaseService = new TestCaseService()
+const evaluationService = new EvaluationService()
+const uiExplorationService = new UiExplorationService()
 
 // === Projects Actions ===
 
@@ -260,6 +266,99 @@ export async function generateTestCasesAction(
 export async function getTestCasesAction(artifactId: string) {
   try {
     return { data: await testCaseService.getTestCases(artifactId) }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function getGeneratedVsFinalDiffAction(generatedArtifactId: string, finalArtifactId: string) {
+  try {
+    return { data: await evaluationService.getGeneratedVsFinalDiff(generatedArtifactId, finalArtifactId) }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function createArtifactFeedbackAction(dto: CreateArtifactFeedbackDTO, projectId?: string) {
+  try {
+    const feedback = await evaluationService.createArtifactFeedback(dto)
+    if (projectId) revalidatePath(`/projects/${projectId}/features/${dto.feature_id}`)
+    return { data: feedback }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function getArtifactFeedbackAction(artifactId: string) {
+  try {
+    return { data: await evaluationService.getArtifactFeedback(artifactId) }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function getFeatureEvaluationSummaryAction(featureId: string) {
+  try {
+    return { data: await evaluationService.getFeatureEvaluationSummary(featureId) }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function createModelComparisonSnapshotAction(params: {
+  featureId: string
+  stepKey: string
+  modelAId: string
+  modelBId: string
+  artifactAId: string
+  artifactBId: string
+  projectId?: string
+}) {
+  try {
+    const result = await evaluationService.createModelComparisonSnapshot(params)
+    if (params.projectId) revalidatePath(`/projects/${params.projectId}/features/${params.featureId}`)
+    return { data: result }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function createFeatureEnvironmentAction(dto: CreateFeatureEnvironmentDTO, projectId: string) {
+  try {
+    const environment = await uiExplorationService.createEnvironment(dto)
+    revalidatePath(`/projects/${projectId}/features/${dto.feature_id}`)
+    return { data: environment }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function getFeatureEnvironmentsAction(featureId: string) {
+  try {
+    return { data: await uiExplorationService.getEnvironments(featureId) }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function enqueueUiExplorationJobAction(params: {
+  featureId: string
+  projectId: string
+  environmentId: string
+  targetUrl: string
+}) {
+  try {
+    const job = await uiExplorationService.enqueueExplorationJob(params)
+    revalidatePath(`/projects/${params.projectId}/features/${params.featureId}`)
+    return { data: job }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function getUiExplorationJobsAction(featureId: string) {
+  try {
+    return { data: await uiExplorationService.getJobs(featureId) }
   } catch (error: any) {
     return { error: error.message }
   }

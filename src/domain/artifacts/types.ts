@@ -4,6 +4,7 @@ export type ArtifactType =
   | "FEATURE_UNDERSTANDING"
   | "TESTCASE_SET"
   | "TESTCASE_FINAL"
+  | "UI_EXPLORATION"
 
 export type ArtifactStatus = "DRAFT" | "CONFIRMED" | "FINAL" | "SUPERSEDED"
 

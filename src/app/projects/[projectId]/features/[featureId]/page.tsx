@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Clock3, Cpu, Loader2, Lock, ShieldCheck, Sparkles, MessageSquare, FileSpreadsheet } from "lucide-react"
+import { ArrowLeft, BarChart3, Clock3, Compass, Cpu, Loader2, Lock, ShieldCheck, Sparkles, MessageSquare, FileSpreadsheet } from "lucide-react"
 import Link from "next/link"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -12,6 +12,8 @@ import { ClarificationPanel } from "@/components/features/clarification-panel"
 import { UnderstandingPanel } from "@/components/features/understanding-panel"
 import { TestCasePanel } from "@/components/features/testcase-panel"
 import { HistoryPanel } from "@/components/features/history-panel"
+import { EvaluationPanel } from "@/components/features/evaluation-panel"
+import { UiExplorationPanel } from "@/components/features/ui-exploration-panel"
 import { getFeatureByIdAction, getProjectByIdAction, getInputSourcesAction } from "@/app/actions"
 import { Project } from "@/domain/projects/types"
 import { Feature } from "@/domain/features/types"
@@ -27,7 +29,7 @@ export default function FeatureWorkspace() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<"inputs" | "analysis" | "clarification" | "understanding" | "testcases" | "history">("inputs")
+  const [activeTab, setActiveTab] = useState<"inputs" | "analysis" | "clarification" | "understanding" | "testcases" | "exploration" | "evaluation" | "history">("inputs")
 
   const fetchData = useCallback(async () => {
     setErrorMsg(null)
@@ -335,6 +337,32 @@ export default function FeatureWorkspace() {
               )}
 
               <button
+                onClick={() => setActiveTab("exploration")}
+                className={cn(
+                  "px-4 py-2 border-b-2 transition-all font-semibold cursor-pointer shrink-0 flex items-center gap-1.5",
+                  activeTab === "exploration"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Compass className="w-3.5 h-3.5 text-primary" />
+                UI Exploration
+              </button>
+
+              <button
+                onClick={() => setActiveTab("evaluation")}
+                className={cn(
+                  "px-4 py-2 border-b-2 transition-all font-semibold cursor-pointer shrink-0 flex items-center gap-1.5",
+                  activeTab === "evaluation"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-primary" />
+                Evaluation
+              </button>
+
+              <button
                 onClick={() => setActiveTab("history")}
                 className={cn(
                   "px-4 py-2 border-b-2 transition-all font-semibold cursor-pointer shrink-0 flex items-center gap-1.5",
@@ -387,6 +415,20 @@ export default function FeatureWorkspace() {
                 projectId={projectId}
                 feature={feature}
                 onRefresh={fetchData}
+              />
+            )}
+
+            {activeTab === "exploration" && (
+              <UiExplorationPanel
+                projectId={projectId}
+                featureId={feature.id}
+              />
+            )}
+
+            {activeTab === "evaluation" && (
+              <EvaluationPanel
+                projectId={projectId}
+                featureId={feature.id}
               />
             )}
 
