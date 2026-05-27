@@ -41,3 +41,9 @@
 ## Definition of Done
 
 - UI thật trở thành nguồn input có kiểm soát cho requirement analysis; chưa sinh code automation.
+
+---
+
+## Task Boundary Update
+
+When implementing Phase 03, create/consume a `BrowserToolAdapter` boundary. The first provider is `PlaywrightMcpAdapter`; `SeleniumMcpAdapter` is future. Do not make workflow code call Playwright MCP directly. Keep exploration tooling independent from automation output profiles.

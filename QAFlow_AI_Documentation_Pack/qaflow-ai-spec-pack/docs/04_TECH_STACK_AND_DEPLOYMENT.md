@@ -250,3 +250,23 @@ Khi bắt đầu MCP/automation:
 - Playwright MCP: <https://playwright.dev/docs/getting-started-mcp>
 - Playwright CI: <https://playwright.dev/docs/ci-intro>
 - 9Router repository: <https://github.com/decolua/9router>
+
+---
+
+## Provider And Tool Deployment Addendum
+
+Phase 01B requires real Supabase and a real model provider API key. The model adapter must remain provider-agnostic:
+
+- OpenAI-compatible adapter can target OpenAI, DeepSeek, or compatible endpoints.
+- Claude-native adapter is optional/future.
+- Team and production modes must not silently fallback to mock output.
+- Phase 01B does not require MCP.
+
+MCP-based browser work begins later through a worker/runtime boundary. The web app is the control plane; browser exploration and long-running execution belong in worker services.
+
+Browser tools must be integrated through `BrowserToolAdapter`:
+
+- `PlaywrightMcpAdapter`: first provider.
+- `SeleniumMcpAdapter`: future provider.
+
+Workflow code should depend on the adapter contract, not Playwright MCP directly.

@@ -425,3 +425,13 @@ MVP chỉ nên đưa team dùng thử khi:
 - AI output schema validation và lỗi repair hoạt động.
 - Excel export kiểm tra đúng columns/sample.
 - Có dữ liệu demo, không cần đưa tài liệu nhạy cảm vào môi trường chưa có access gate.
+
+---
+
+## Platform Scope Addendum
+
+QAFlow AI is a multi-workflow QA platform. A shared Requirement Understanding Layer supports Manual QA, Automation QA, API QA, Performance QA, and shared Evaluation/History/Reports.
+
+The Manual QA MVP is the first workflow, not the final product boundary. Later workflows reuse source intake, clarification, confirmed understanding, artifact versioning, evaluation, and reporting.
+
+The Core Engine owns workflow execution, persistence, validation, security, UI, and integration boundaries. Custom team behavior belongs in Git-versioned skills, schemas, and templates. Skills define requirement reading rules, testcase formats, automation conventions, and API/performance QA rules.

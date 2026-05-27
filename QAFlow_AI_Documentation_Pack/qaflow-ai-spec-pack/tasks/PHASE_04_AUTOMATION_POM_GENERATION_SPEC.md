@@ -40,3 +40,16 @@ Từ testcase đã final/approved, AI sinh đề xuất automation test có cấ
 - Code tuân POM convention configured.
 - Validation result và evidence hiển thị trên web.
 - User quyết định handoff; không tự merge.
+
+---
+
+## Architecture Update: Automation Output Profile
+
+Phase 04 uses an Automation Output Profile that is independent from the Phase 03 Exploration Tool.
+
+- Phase 03 may use `PlaywrightMcpAdapter` through `BrowserToolAdapter` for read-only UI exploration.
+- Phase 04 may generate Playwright TypeScript POM output, or later another automation profile, based on configured team convention.
+- Workflow logic must not assume that Playwright MCP exploration means Playwright code generation.
+- Selenium or other future profiles can be added without changing the shared Requirement Understanding Layer.
+
+The Core Engine owns orchestration, persistence, validation, security, UI, and integration boundaries. Custom automation conventions belong in Git-versioned skills/templates/schemas.

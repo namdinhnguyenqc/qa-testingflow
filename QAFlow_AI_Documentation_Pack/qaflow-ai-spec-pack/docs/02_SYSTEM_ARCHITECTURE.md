@@ -334,3 +334,31 @@ Container Worker on appropriate host
 | Job AI chậm/time out | MVP xử lý step nhỏ; về sau job async/worker |
 | Skill thay đổi làm output xấu hơn | Lưu commit, feedback, benchmark, rollback |
 | Automation chạy sai domain | Domain allowlist và explicit environment policy ở phase automation |
+
+---
+
+## Architecture Addendum: Core Engine, Skills, Models, And Tools
+
+QAFlow AI is a multi-workflow platform with a shared Requirement Understanding Layer. Manual QA, Automation QA, API QA, Performance QA, and Evaluation/History/Reports all consume or enrich the same understanding and artifact history.
+
+Core Engine responsibilities:
+
+- Workflow execution and step orchestration.
+- Persistence, artifact versioning, history, and reporting.
+- JSON/schema validation and runtime safety.
+- Security, environment validation, access gates, and integration boundaries.
+- UI surfaces that operate on workflow state and artifacts.
+
+Custom Skill responsibilities:
+
+- Requirement reading policy.
+- Manual testcase format.
+- Automation conventions and output profile.
+- API QA rules and contract expectations.
+- Performance QA/NFR interpretation rules.
+
+Skills, schemas, and templates are Git-versioned `.md` / `.json` assets. They are product configuration and quality policy, not hard-coded infrastructure.
+
+Phase 01B, Real Model Provider Integration & Verification, validates real Manual QA execution using real Supabase and real provider API keys. The model layer remains provider-agnostic. OpenAI-compatible adapters can support DeepSeek or compatible providers. Claude-native support is optional/future. Team and production modes must not fallback to mock output. Phase 01B does not use MCP.
+
+MCP is a protocol for AI tool use; it is not a model and not an output framework. Browser access is behind `BrowserToolAdapter`. `PlaywrightMcpAdapter` is the first provider; `SeleniumMcpAdapter` is a future provider. Workflow definitions call browser-tool capabilities, not Playwright MCP directly. Exploration Tool selection and Automation Output Profile selection are independent.

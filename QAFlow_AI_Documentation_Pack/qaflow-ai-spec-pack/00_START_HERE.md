@@ -174,3 +174,47 @@ qaflow-ai/
 - Playwright MCP: https://playwright.dev/docs/getting-started-mcp
 - Playwright CI: https://playwright.dev/docs/ci-intro
 - 9Router repo: https://github.com/decolua/9router
+
+---
+
+## 9. Architecture Addendum — Multi-workflow Platform
+
+QAFlow AI is a multi-workflow platform, not only a Manual QA testcase generator. The shared Requirement Understanding Layer feeds:
+
+- Manual QA.
+- Automation QA.
+- API QA.
+- Performance QA.
+- Shared Evaluation, History, and Reports.
+
+Core Engine responsibilities:
+
+- Workflow execution and step orchestration.
+- Persistence, artifact versioning, validation, and security.
+- UI and integration boundaries.
+
+Custom Skill responsibilities:
+
+- Requirement reading rules.
+- Testcase format and templates.
+- Automation conventions.
+- API and performance QA rules.
+
+Skills, schemas, and templates live as Git-versioned `.md` / `.json` files. Core code should load and validate them instead of hard-coding team-specific QA policy.
+
+Phase 01B is **Real Model Provider Integration & Verification**. It verifies Manual QA using real Supabase plus a real model provider API key. The model layer remains provider-agnostic and must not lock the product to Claude, Codex, or any single provider. The OpenAI-compatible adapter may be used with DeepSeek or compatible endpoints. A Claude-native adapter is optional/future. Team and production modes must never fall back to mock output. Phase 01B does not use MCP.
+
+MCP is a tool protocol, not a model provider and not an output framework. Browser access is abstracted behind `BrowserToolAdapter`; `PlaywrightMcpAdapter` is the first provider and `SeleniumMcpAdapter` is a future provider. Workflow logic must not call Playwright MCP directly. Exploration Tool choice and Automation Output Profile choice are independent.
+
+Updated roadmap order:
+
+1. Phase 00 — Foundation.
+2. Phase 01 — Manual QA MVP.
+3. Phase 01B — Real Model Provider Integration.
+4. Phase 02 — Evaluation.
+5. Phase 03 — Browser UI Exploration via BrowserToolAdapter.
+6. Phase 04 — Automation Generation.
+7. Phase 05 — Regression.
+8. Phase 06 — API QA.
+9. Phase 07 — Performance QA.
+10. Phase 08 — Optional Anti-bot Runtime.

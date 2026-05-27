@@ -42,3 +42,18 @@ Bổ sung khả năng AI kiểm tra giao diện staging/UAT thật để so sán
 - AI hiển thị discovered components và mismatch với existing sources.
 - Nếu mismatch critical, có thể tạo clarification mới.
 - Domain ngoài allowlist bị chặn.
+
+---
+
+## Architecture Update: BrowserToolAdapter
+
+Phase 03 is Browser UI Exploration via `BrowserToolAdapter`, not direct Playwright MCP coupling.
+
+- MCP is a protocol for tool access, not a model provider and not an output framework.
+- `PlaywrightMcpAdapter` is the first browser tool provider.
+- `SeleniumMcpAdapter` is a future browser tool provider.
+- Workflow logic requests browser exploration through the adapter contract.
+- Worker/runtime implementation chooses the adapter provider.
+- Exploration Tool choice is independent from Automation Output Profile choice.
+
+Phase 03 remains exploration only. It does not generate automation code and does not define the Phase 04 automation framework.

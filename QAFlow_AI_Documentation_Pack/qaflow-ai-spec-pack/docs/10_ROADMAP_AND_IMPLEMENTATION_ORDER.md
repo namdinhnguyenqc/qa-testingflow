@@ -86,3 +86,24 @@ Bao gồm Phase 05 và nhu cầu cụ thể Phase 06/07/08.
 | 03 | UI snapshot/mismatch có giá trị | Worker không ổn hoặc target access không rõ |
 | 04 | Code POM maintainable | Code generated cần sửa quá nhiều |
 | 05 | Reports hỗ trợ quyết định | Evidence/false failures quá tốn công |
+
+---
+
+## Updated Roadmap Addendum
+
+| Phase | Name | Primary outcome |
+|---:|---|---|
+| 00 | Foundation | Web app, persistence, project/feature/input, qa-core foundation |
+| 01 | Manual QA MVP | Requirement analysis, clarification, understanding, manual testcase, Excel |
+| 01B | Real Model Provider Integration | Real Supabase + real provider API key verification; no mock fallback; no MCP |
+| 02 | Evaluation | Feedback, generated/final diff, model/skill quality measurement |
+| 03 | Browser UI Exploration via BrowserToolAdapter | Authorized UI snapshot/mismatch using browser tool adapter; Playwright MCP first provider |
+| 04 | Automation Generation | Generate automation proposal/code using selected Automation Output Profile |
+| 05 | Regression | Suite/run/report/evidence/CI failure analysis |
+| 06 | API QA | API testcase design and automation workflow |
+| 07 | Performance QA | NFR/performance test design, run, and report workflow |
+| 08 | Optional Anti-bot Runtime | Authorized optional runtime only for approved internal/sandbox use cases |
+
+Phase 03 must not call Playwright MCP directly from workflow logic. It must use `BrowserToolAdapter`. `PlaywrightMcpAdapter` is the first adapter provider; `SeleniumMcpAdapter` is a future provider.
+
+Phase 04 automation output is independent from Phase 03 exploration tooling. The team may choose Playwright MCP for exploration while still choosing Playwright TypeScript POM, Selenium, or another future automation output profile.

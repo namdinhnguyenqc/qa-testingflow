@@ -39,3 +39,9 @@
 ## Definition of Done
 
 - Ít nhất một testcase final được chuyển thành POM proposal, validate và review end-to-end.
+
+---
+
+## Task Boundary Update
+
+When implementing Phase 04, generate automation through an explicit Automation Output Profile. Do not assume the Phase 03 exploration provider determines the generated automation framework. Keep Playwright TypeScript POM as one profile, with room for Selenium or other future profiles.

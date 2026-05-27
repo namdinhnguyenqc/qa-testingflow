@@ -267,3 +267,25 @@ AI failure classification
   ↓
 Dashboard + export/share report
 ```
+
+---
+
+## Phase 01B User Flow Addendum
+
+Phase 01B verifies the existing Manual QA workflow with real infrastructure:
+
+1. Configure `APP_ACCESS_MODE=team` or `production`.
+2. Configure real Supabase project credentials.
+3. Configure a real model provider API key.
+4. Run Manual QA from source intake through export.
+5. Confirm no team/production path falls back to mock AI output.
+
+Phase 01B does not introduce MCP, browser exploration, automation generation, API QA, or performance QA. It proves that the shared Requirement Understanding Layer and Manual QA workflow work with real model output.
+
+Future workflow families reuse the same understanding state:
+
+- Manual QA creates reviewed human-readable testcases.
+- Automation QA consumes approved/final testcases and automation conventions.
+- API QA consumes requirement understanding plus API contracts.
+- Performance QA consumes NFR/performance-specific understanding.
+- Evaluation/History/Reports observe all workflows.

@@ -16,6 +16,18 @@ Hệ thống cho phép tester dán mô tả requirement, tải lên tài liệu 
 
 ---
 
+## Platform Architecture Update
+
+QAFlow AI is a multi-workflow QA platform. A shared Requirement Understanding Layer feeds Manual QA, Automation QA, API QA, Performance QA, and common Evaluation/History/Reports.
+
+The core engine owns workflow execution, persistence, validation, security, UI, and integration boundaries. Team-specific behavior stays in Git-versioned skills, schemas, and templates under `qa-core/`: `.md` skills, `.json` schemas, and templates. Those files define how to read requirements, format testcases, follow automation conventions, and apply API/performance rules.
+
+Model integration is provider-agnostic. Phase 01B adds real provider verification through API keys without locking the product to Claude, Codex, or a single vendor. The OpenAI-compatible adapter can be used with DeepSeek or compatible providers; a Claude-native adapter is optional/future. Team and production mode must not fall back to mock AI output.
+
+MCP is a tool protocol, not a model and not an output framework. Browser exploration should go through a `BrowserToolAdapter`; `PlaywrightMcpAdapter` is the first provider and `SeleniumMcpAdapter` can be added later. Workflow code should not call Playwright MCP directly.
+
+---
+
 ## 2. Local Development Setup
 
 Làm theo các bước sau để chạy dự án dưới máy local:

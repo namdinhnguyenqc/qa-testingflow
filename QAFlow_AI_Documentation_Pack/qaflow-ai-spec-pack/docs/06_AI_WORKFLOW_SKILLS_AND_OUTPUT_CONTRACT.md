@@ -315,3 +315,28 @@ Activate/deploy improved revision
 | Automation | Test repo branch/diff, Playwright runner | Product source modification, merge main tự động |
 | Performance | Approved target/load runner | Run tải khi chưa approval |
 | Anti-bot | Authorized sandbox only | Bypass bên thứ ba/target ngoài scope |
+
+---
+
+## Skill Boundary Addendum
+
+QAFlow AI separates the Core Engine from Custom Skill assets.
+
+Core Engine:
+
+- Executes workflows.
+- Persists inputs, runs, artifacts, feedback, and reports.
+- Validates output schemas.
+- Enforces runtime safety and access boundaries.
+- Integrates model and tool adapters.
+
+Custom Skills/Schemas/Templates:
+
+- `.md` skills define how requirements are read and how QA reasoning is performed.
+- `.json` schemas define output contracts.
+- Templates define testcase, automation, API, or performance output formats.
+- Git history is the versioning and review mechanism.
+
+Skill files can define Manual QA conventions, automation POM conventions, API testcase rules, and performance/NFR interpretation. Core code should not hard-code those team-specific conventions.
+
+MCP/tool use is orthogonal to model selection and output contract selection. A workflow may use browser exploration through `BrowserToolAdapter`, while automation output remains controlled by an Automation Output Profile.
