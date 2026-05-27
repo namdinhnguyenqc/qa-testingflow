@@ -22,7 +22,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
-  AI_PROVIDER_TYPE: z.string().optional().default("openai"),
+  AI_PROVIDER_TYPE: z.enum(["openai-compatible"]).default("openai-compatible"),
   AI_PROVIDER_BASE_URL: z.string().url().optional(),
   AI_PROVIDER_API_KEY: z.string().optional(),
   AI_DEFAULT_MODEL: z.string().optional().default("gpt-4o"),
@@ -99,7 +99,7 @@ const getEnv = () => {
         NEXT_PUBLIC_SUPABASE_URL: "https://mock.supabase.co",
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "mock",
         SUPABASE_SERVICE_ROLE_KEY: "mock",
-        AI_PROVIDER_TYPE: "openai",
+        AI_PROVIDER_TYPE: "openai-compatible" as const,
         AI_PROVIDER_BASE_URL: "https://api.openai.com/v1",
         AI_PROVIDER_API_KEY: "mock",
         AI_DEFAULT_MODEL: "gpt-4o",

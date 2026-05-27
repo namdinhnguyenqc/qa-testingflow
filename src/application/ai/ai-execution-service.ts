@@ -1,7 +1,7 @@
 import { SupabaseDbAdapter } from "@/infrastructure/database/supabase-db-adapter"
 import { SkillLoader } from "@/infrastructure/skills/skill-loader"
-import { OpenAICompatibleAdapter } from "@/infrastructure/model/openai-adapter"
-import { ModelExecutionResult } from "@/infrastructure/model/model-adapter"
+import { createModelAdapter } from "@/infrastructure/model/model-adapter-factory"
+import { ModelAdapter, ModelExecutionResult } from "@/infrastructure/model/model-adapter"
 import { JsonValidator } from "@/infrastructure/validation/json-validator"
 import { StepRun, ValidationStatus } from "@/domain/workflow-runs/types"
 import { Artifact } from "@/domain/artifacts/types"
@@ -18,7 +18,7 @@ export interface AiStepExecutionResult {
 export class AiExecutionService {
   private dbAdapter: SupabaseDbAdapter
   private skillLoader: SkillLoader
-  private modelAdapter: OpenAICompatibleAdapter
+  private modelAdapter: ModelAdapter
   private jsonValidator: JsonValidator
 
   private maxRepairAttempts = 2
@@ -26,7 +26,7 @@ export class AiExecutionService {
   constructor() {
     this.dbAdapter = new SupabaseDbAdapter()
     this.skillLoader = new SkillLoader()
-    this.modelAdapter = new OpenAICompatibleAdapter()
+    this.modelAdapter = createModelAdapter()
     this.jsonValidator = new JsonValidator()
   }
 

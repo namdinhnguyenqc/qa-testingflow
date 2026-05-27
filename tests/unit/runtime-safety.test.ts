@@ -9,6 +9,7 @@ const realSupabaseEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://real-project.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "real-anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "real-service-role-key",
+  AI_PROVIDER_TYPE: "openai-compatible",
   AI_PROVIDER_BASE_URL: "https://api.openai.com/v1",
   AI_DEFAULT_MODEL: "gpt-4o",
 }
@@ -111,6 +112,41 @@ describe("runtime safety", () => {
     expect(result.parsedOutput).toEqual({ ok: true })
   })
 
+  it("uses the configured OpenAI-compatible base URL and model", async () => {
+    process.env.APP_ACCESS_MODE = "team"
+    process.env.AI_PROVIDER_API_KEY = "real-provider-key"
+    process.env.AI_PROVIDER_BASE_URL = "https://api.deepseek.com/v1"
+    process.env.AI_DEFAULT_MODEL = "deepseek-chat"
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '```json\n{"ok":true}\n```' } }],
+      }),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const adapter = await loadAdapter()
+    const result = await adapter.executeStructuredTask({
+      modelId: "",
+      systemInstructions: "system",
+      skillInstructions: "skill",
+      context: "context",
+      outputSchema: { title: "RequirementAnalysis", type: "object" },
+    })
+
+    expect(result.executionMode).toBe("provider")
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.deepseek.com/v1/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer real-provider-key",
+        }),
+        body: expect.stringContaining('"model":"deepseek-chat"'),
+      })
+    )
+  })
+
   it("returns provider errors without mock fallback in team mode", async () => {
     process.env.APP_ACCESS_MODE = "team"
     process.env.AI_PROVIDER_API_KEY = "real-provider-key"
@@ -139,6 +175,15 @@ describe("runtime safety", () => {
 
     expect(env.APP_ACCESS_MODE).toBe("production")
     expect(env.NEXT_PUBLIC_SUPABASE_URL).toBe(realSupabaseEnv.NEXT_PUBLIC_SUPABASE_URL)
+  })
+
+  it("rejects unsupported provider types in team mode", async () => {
+    process.env.APP_ACCESS_MODE = "team"
+    process.env.AI_PROVIDER_TYPE = "claude-native"
+    process.env.AI_PROVIDER_API_KEY = "real-provider-key"
+    vi.resetModules()
+
+    await expect(import("@/lib/env")).rejects.toThrow("Invalid environment variables")
   })
 
   it("rejects placeholder Supabase URL in production mode", async () => {
