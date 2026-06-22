@@ -143,6 +143,18 @@ enum ExportStatus {
   @@schema("aiqa_dev")
 }
 
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+  @@schema("aiqa_dev")
+}
+
 model Project {
   id              String          @id @default(uuid())
   name            String

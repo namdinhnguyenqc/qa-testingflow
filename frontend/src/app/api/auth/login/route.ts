@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000/api';
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001/api';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
   // In mock mode, accept any non-empty email+password
   if (process.env.NEXT_PUBLIC_API_MOCK === 'true') {
-    if (body.email && body.password) {
+    if (body.email === 'admin@gmail.com' && body.password === 'Abc@1234') {
       const res = NextResponse.json({ ok: true });
       res.cookies.set('auth-token', 'mock-token', { httpOnly: true, path: '/', sameSite: 'lax' });
       return res;

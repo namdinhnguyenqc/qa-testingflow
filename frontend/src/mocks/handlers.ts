@@ -8,7 +8,7 @@ import {
   mockExports,
 } from './data';
 
-const BASE = 'http://localhost:3000/api';
+const BASE = 'http://localhost:3001/api';
 
 let projects = [...mockProjects];
 let idCounter = 10;
@@ -17,8 +17,8 @@ export const handlers = [
   // Auth
   http.post(`${BASE}/auth/login`, async ({ request }) => {
     const body = await request.json() as { email: string; password: string };
-    if (body.email && body.password) {
-      return HttpResponse.json({ token: 'mock-token', user: { email: body.email } });
+    if (body.email === 'admin@gmail.com' && body.password === 'Abc@1234') {
+      return HttpResponse.json({ token: 'mock-token', user: { email: body.email, role: 'admin' } });
     }
     return HttpResponse.json({ message: 'Email hoặc mật khẩu không đúng' }, { status: 401 });
   }),
