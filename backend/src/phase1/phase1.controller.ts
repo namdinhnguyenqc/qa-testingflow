@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
   AnalyzeRequirementDto,
@@ -29,11 +38,13 @@ export class Phase1Controller {
   }
 
   @Post('artifacts/:id/parse')
+  @HttpCode(HttpStatus.ACCEPTED)
   parseArtifact(@Param('id') id: string) {
     return this.phase1Service.parseArtifact(id);
   }
 
   @Post('projects/:projectId/requirements/analyze')
+  @HttpCode(HttpStatus.ACCEPTED)
   analyzeRequirement(
     @Param('projectId') projectId: string,
     @Body() dto: AnalyzeRequirementDto,
@@ -55,11 +66,13 @@ export class Phase1Controller {
   }
 
   @Post('requirements/versions/:id/quality')
+  @HttpCode(HttpStatus.ACCEPTED)
   queueQuality(@Param('id') id: string) {
     return this.phase1Service.queueQuality(id);
   }
 
   @Post('requirements/versions/:id/gaps')
+  @HttpCode(HttpStatus.ACCEPTED)
   detectGaps(@Param('id') id: string) {
     return this.phase1Service.detectGaps(id);
   }
@@ -75,6 +88,7 @@ export class Phase1Controller {
   }
 
   @Post('requirements/versions/:id/rewrite')
+  @HttpCode(HttpStatus.ACCEPTED)
   rewriteRequirement(@Param('id') id: string) {
     return this.phase1Service.rewriteRequirement(id);
   }
@@ -85,6 +99,7 @@ export class Phase1Controller {
   }
 
   @Post('requirements/versions/:id/testcase-sets')
+  @HttpCode(HttpStatus.ACCEPTED)
   generateTestcases(
     @Param('id') id: string,
     @Body() dto: GenerateTestcasesDto,
@@ -103,6 +118,7 @@ export class Phase1Controller {
   }
 
   @Post('testcase-sets/:id/coverage')
+  @HttpCode(HttpStatus.ACCEPTED)
   checkCoverage(@Param('id') id: string) {
     return this.phase1Service.checkCoverage(id);
   }
@@ -113,6 +129,7 @@ export class Phase1Controller {
   }
 
   @Post('testcase-sets/:id/exports/excel')
+  @HttpCode(HttpStatus.ACCEPTED)
   exportExcel(@Param('id') id: string) {
     return this.phase1Service.exportExcel(id);
   }
@@ -133,6 +150,7 @@ export class Phase1Controller {
   }
 
   @Post('workflow-runs/:id/retry')
+  @HttpCode(HttpStatus.ACCEPTED)
   retryWorkflowRun(@Param('id') id: string) {
     return this.phase1Service.retryWorkflowRun(id);
   }

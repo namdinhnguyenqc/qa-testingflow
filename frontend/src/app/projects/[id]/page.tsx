@@ -15,10 +15,22 @@ import {
 } from "lucide-react";
 import { Shell } from "@/components/shell";
 import { Badge, Button, PageHeader, Panel, Select, TextArea, TextInput } from "@/components/ui";
-import { getProject } from "@/lib/api";
+import {
+  analyzeRequirements,
+  approveRequirement,
+  checkCoverage,
+  createTextArtifact,
+  detectGaps,
+  exportExcel,
+  generateTestcases,
+  getProject,
+  getRequirementVersion,
+  getTestcaseSet,
+  parseArtifact,
+  rewriteRequirement,
+} from "@/lib/api";
 import { gapItems, requirementItems, testCases } from "@/lib/mock-data";
-import { useWorkflowStatus } from "@/lib/workflow";
-import type { StepKey } from "@/types/domain";
+import type { Artifact, RequirementVersion, StepKey, TestcaseSet, WorkflowRun } from "@/types/domain";
 import styles from "./page.module.css";
 
 const steps: Array<{ key: StepKey; label: string }> = [
@@ -34,8 +46,12 @@ const steps: Array<{ key: StepKey; label: string }> = [
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
   const [active, setActive] = useState<StepKey>("input");
-  const [runningWorkflow, setRunningWorkflow] = useState<string | null>(null);
-  const workflow = useWorkflowStatus(runningWorkflow ?? "idle", Boolean(runningWorkflow));
+  const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const [requirementVersion, setRequirementVersion] = useState<RequirementVersion | null>(null);
+  const [testcaseSet, setTestcaseSet] = useState<TestcaseSet | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowRun | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: project } = useQuery({
     queryKey: ["project", params.id],
     queryFn: () => getProject(params.id),
@@ -46,6 +62,74 @@ export default function ProjectDetailPage() {
     return Math.round((covered / denominator) * 100);
   }, []);
 
+  async function runStep() {
+    setIsRunning(true);
+    setError(null);
+    try {
+      if (active === "input") {
+        const created = await createTextArtifact(
+          params.id,
+          "User can login, recover password, generate test cases, review coverage, and export Excel.",
+        );
+        setArtifact(created);
+        setWorkflow(await parseArtifact(created.id));
+      }
+
+      if (active === "analyze") {
+        const currentArtifact =
+          artifact ??
+          (await createTextArtifact(
+            params.id,
+            "User can login, recover password, generate test cases, review coverage, and export Excel.",
+          ));
+        setArtifact(currentArtifact);
+        const run = await analyzeRequirements(params.id, currentArtifact.id);
+        setWorkflow(run);
+        const versionId = run.outputJson?.requirementVersionId;
+        if (typeof versionId === "string") {
+          setRequirementVersion(await getRequirementVersion(versionId));
+        }
+      }
+
+      if (active === "gaps" && requirementVersion) {
+        const run = await detectGaps(requirementVersion.id);
+        setWorkflow(run);
+        setRequirementVersion(await getRequirementVersion(requirementVersion.id));
+      }
+
+      if (active === "final" && requirementVersion) {
+        const run = await rewriteRequirement(requirementVersion.id);
+        setWorkflow(run);
+        const versionId = run.outputJson?.requirementVersionId;
+        const nextVersion = typeof versionId === "string" ? await getRequirementVersion(versionId) : requirementVersion;
+        setRequirementVersion(nextVersion);
+        await approveRequirement(nextVersion.id);
+        setRequirementVersion(await getRequirementVersion(nextVersion.id));
+      }
+
+      if (active === "testcases" && requirementVersion) {
+        const run = await generateTestcases(requirementVersion.id);
+        setWorkflow(run);
+        const testcaseSetId = run.outputJson?.testcaseSetId;
+        if (typeof testcaseSetId === "string") {
+          setTestcaseSet(await getTestcaseSet(testcaseSetId));
+        }
+      }
+
+      if (active === "coverage" && testcaseSet) {
+        setWorkflow(await checkCoverage(testcaseSet.id));
+      }
+
+      if (active === "export" && testcaseSet) {
+        setWorkflow(await exportExcel(testcaseSet.id));
+      }
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : "Workflow failed");
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
   return (
     <Shell>
       <PageHeader
@@ -54,12 +138,11 @@ export default function ProjectDetailPage() {
         actions={
           <Button
             variant="secondary"
-            onClick={() => {
-              setRunningWorkflow(active);
-            }}
+            onClick={runStep}
+            disabled={isRunning}
           >
             <Play size={16} />
-            Run step
+            {isRunning ? "Running" : "Run step"}
           </Button>
         }
       />
@@ -83,18 +166,24 @@ export default function ProjectDetailPage() {
           <code>{workflow.traceId}</code>
         </div>
       ) : null}
-      {active === "input" ? <InputTab /> : null}
-      {active === "analyze" ? <AnalyzeTab /> : null}
-      {active === "gaps" ? <GapsTab /> : null}
+      {error ? (
+        <div className={styles.workflow}>
+          <Badge tone="danger">failed</Badge>
+          <span>{error}</span>
+        </div>
+      ) : null}
+      {active === "input" ? <InputTab artifact={artifact} /> : null}
+      {active === "analyze" ? <AnalyzeTab version={requirementVersion} /> : null}
+      {active === "gaps" ? <GapsTab version={requirementVersion} /> : null}
       {active === "final" ? <FinalRequirementTab /> : null}
-      {active === "testcases" ? <TestcasesTab /> : null}
-      {active === "coverage" ? <CoverageTab coverage={coverage} /> : null}
+      {active === "testcases" ? <TestcasesTab set={testcaseSet} /> : null}
+      {active === "coverage" ? <CoverageTab coverage={coverage} version={requirementVersion} /> : null}
       {active === "export" ? <ExportTab /> : null}
     </Shell>
   );
 }
 
-function InputTab() {
+function InputTab({ artifact }: { artifact: Artifact | null }) {
   return (
     <div className={styles.grid}>
       <Panel>
@@ -105,7 +194,7 @@ function InputTab() {
         <div className={styles.dropzone}>
           <FileText size={24} />
           <strong>Drop requirement file</strong>
-          <span>PDF, DOCX, TXT, XLSX, CSV, image, or Figma URL</span>
+          <span>{artifact ? `${artifact.fileName ?? artifact.id} - ${artifact.status}` : "PDF, DOCX, TXT, XLSX, CSV, image, or Figma URL"}</span>
         </div>
       </Panel>
       <Panel>
@@ -116,7 +205,8 @@ function InputTab() {
   );
 }
 
-function AnalyzeTab() {
+function AnalyzeTab({ version }: { version: RequirementVersion | null }) {
+  const items = version?.items ?? requirementItems;
   return (
     <div className={styles.gridWide}>
       <Panel>
@@ -125,7 +215,7 @@ function AnalyzeTab() {
           Structured items
         </h2>
         <div className={styles.table}>
-          {requirementItems.map((item) => (
+          {items.map((item) => (
             <div key={item.externalId}>
               <strong>{item.externalId}</strong>
               <span>{item.module}</span>
@@ -138,14 +228,15 @@ function AnalyzeTab() {
       </Panel>
       <Panel>
         <h2>Quality score</h2>
-        <div className={styles.score}>84</div>
+        <div className={styles.score}>{version?.qualityScore ?? 84}</div>
         <p className={styles.muted}>Clear and testable with minor error-state gaps.</p>
       </Panel>
     </div>
   );
 }
 
-function GapsTab() {
+function GapsTab({ version }: { version: RequirementVersion | null }) {
+  const gaps = version?.gaps ?? gapItems;
   return (
     <Panel>
       <h2>
@@ -153,7 +244,7 @@ function GapsTab() {
         Gap review
       </h2>
       <div className={styles.table}>
-        {gapItems.map((gap) => (
+        {gaps.map((gap) => (
           <div key={gap.id}>
             <strong>{gap.id}</strong>
             <span>{gap.category}</span>
@@ -188,7 +279,8 @@ function FinalRequirementTab() {
   );
 }
 
-function TestcasesTab() {
+function TestcasesTab({ set }: { set: TestcaseSet | null }) {
+  const cases = set?.testCases ?? testCases;
   return (
     <Panel>
       <h2>
@@ -204,7 +296,7 @@ function TestcasesTab() {
         </Select>
       </div>
       <div className={styles.caseGrid}>
-        {testCases.map((testCase) => (
+        {cases.map((testCase) => (
           <div key={testCase.id}>
             <strong>{testCase.id}</strong>
             <span>{testCase.title}</span>
@@ -216,7 +308,8 @@ function TestcasesTab() {
   );
 }
 
-function CoverageTab({ coverage }: { coverage: number }) {
+function CoverageTab({ coverage, version }: { coverage: number; version: RequirementVersion | null }) {
+  const items = version?.items ?? requirementItems;
   return (
     <Panel>
       <h2>Coverage matrix</h2>
@@ -225,7 +318,7 @@ function CoverageTab({ coverage }: { coverage: number }) {
         <span>Not Testable excluded from denominator</span>
       </div>
       <div className={styles.table}>
-        {requirementItems.map((item, index) => (
+        {items.map((item, index) => (
           <div key={item.externalId}>
             <strong>{item.externalId}</strong>
             <span>{item.feature}</span>

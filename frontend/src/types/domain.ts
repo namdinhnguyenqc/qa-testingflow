@@ -1,5 +1,5 @@
 export type ProjectStatus = "ACTIVE" | "ARCHIVED";
-export type JobStatus = "idle" | "queued" | "running" | "waiting_user" | "succeeded" | "failed";
+export type JobStatus = "idle" | "queued" | "running" | "waiting_user" | "succeeded" | "failed" | "canceled";
 export type StepKey =
   | "input"
   | "analyze"
@@ -55,6 +55,36 @@ export interface WorkflowRun {
   traceId: string;
   workflowKey: string;
   status: JobStatus;
+  outputJson?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Artifact {
+  id: string;
+  projectId: string;
+  type: "DOCUMENT" | "SPREADSHEET" | "IMAGE" | "TEXT" | "FIGMA";
+  status: string;
+  fileName?: string | null;
+  sourceText?: string | null;
+}
+
+export interface RequirementVersion {
+  id: string;
+  projectId: string;
+  versionNo: number;
+  status: string;
+  qualityScore?: number | null;
+  contentMarkdown?: string | null;
+  items: RequirementItem[];
+  gaps: GapItem[];
+}
+
+export interface TestcaseSet {
+  id: string;
+  projectId: string;
+  requirementVersionId: string;
+  versionNo: number;
+  status: string;
+  testCases: TestCase[];
 }

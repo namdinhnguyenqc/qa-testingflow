@@ -66,7 +66,7 @@ export const gapItems: GapItem[] = [
 export const testCases: TestCase[] = [
   {
     id: "TC_AUTH_LOGIN_001",
-    title: "Xác minh đăng nhập thành công với thông tin hợp lệ",
+    title: "Verify successful login with valid credentials",
     module: "Auth",
     feature: "Login",
     priority: "HIGH",
@@ -76,7 +76,7 @@ export const testCases: TestCase[] = [
   },
   {
     id: "TC_AUTH_LOGIN_002",
-    title: "Xác minh lỗi khi nhập sai mật khẩu",
+    title: "Verify invalid password error handling",
     module: "Auth",
     feature: "Login",
     priority: "MEDIUM",
@@ -86,7 +86,7 @@ export const testCases: TestCase[] = [
   },
   {
     id: "TC_EXPORT_EXCEL_001",
-    title: "Xác minh export Excel cho bộ testcase đã duyệt",
+    title: "Verify Excel export for an approved testcase set",
     module: "Export",
     feature: "Excel",
     priority: "MEDIUM",

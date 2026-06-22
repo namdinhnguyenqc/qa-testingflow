@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../node_modules/.prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -47,17 +52,19 @@ export class Phase1Service {
       parser: 'phase1_demo_parser',
     };
 
-    await this.prisma.artifact.update({
-      where: { id },
-      data: {
-        status: 'PARSED',
-        parsedContent,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.artifact.update({
+        where: { id },
+        data: {
+          status: 'PARSED',
+          parsedContent,
+        },
+      });
 
-    return this.createWorkflowRun(artifact.projectId, 'artifact_parse', {
-      artifactId: id,
-      parsedContent,
+      return this.createWorkflowRun(tx, artifact.projectId, 'artifact_parse', {
+        artifactId: id,
+        parsedContent,
+      });
     });
   }
 
@@ -68,30 +75,51 @@ export class Phase1Service {
     if (!artifact) {
       throw new NotFoundException(`Artifact ${dto.artifactId} was not found`);
     }
+    if (artifact.projectId !== projectId) {
+      throw new ForbiddenException(
+        `Artifact ${dto.artifactId} does not belong to project ${projectId}`,
+      );
+    }
 
-    const versionNo =
-      (await this.prisma.requirementVersion.count({ where: { projectId } })) +
-      1;
-    const requirementVersion = await this.prisma.requirementVersion.create({
-      data: {
-        projectId,
-        sourceArtifactId: artifact.id,
-        versionNo,
-        status: 'ANALYZED',
-        qualityScore: 84,
-        qualityJson: this.qualityJson(),
-        contentJson: this.requirementJson(dto.language ?? 'vi'),
-        contentMarkdown: this.requirementMarkdown(),
-      },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const versionNo =
+          (await tx.requirementVersion.count({ where: { projectId } })) + 1;
+        const requirementVersion = await tx.requirementVersion.create({
+          data: {
+            projectId,
+            sourceArtifactId: artifact.id,
+            versionNo,
+            status: 'ANALYZED',
+            qualityScore: 84,
+            qualityJson: this.qualityJson(),
+            contentJson: this.requirementJson(dto.language ?? 'vi'),
+            contentMarkdown: this.requirementMarkdown(),
+          },
+        });
 
-    await this.prisma.requirementItem.createMany({
-      data: this.requirementItems(requirementVersion.id),
-    });
+        await tx.requirementItem.createMany({
+          data: this.requirementItems(requirementVersion.id),
+        });
 
-    const output = { requirementVersionId: requirementVersion.id };
-    await this.createAiCallLog(projectId, 'requirement_reader', 'SUCCEEDED');
-    return this.createWorkflowRun(projectId, 'requirement_analysis', output);
+        const output = { requirementVersionId: requirementVersion.id };
+        await this.createAiCallLog(
+          tx,
+          projectId,
+          'requirement_reader',
+          'SUCCEEDED',
+        );
+        return this.createWorkflowRun(
+          tx,
+          projectId,
+          'requirement_analysis',
+          output,
+        );
+      });
+    } catch (error) {
+      this.throwConflictOnUniqueRace(error, 'Requirement version');
+      throw error;
+    }
   }
 
   async getRequirementVersion(id: string) {
@@ -106,46 +134,56 @@ export class Phase1Service {
 
   async updateRequirementItems(id: string, body: { items?: unknown[] }) {
     await this.getRequirementVersion(id);
-    await this.prisma.requirementItem.deleteMany({
-      where: { requirementVersionId: id },
-    });
-    await this.prisma.requirementItem.createMany({
-      data: (body.items ?? []).map((item, index) => {
-        const value = item as Record<string, unknown>;
-        return {
-          requirementVersionId: id,
-          externalId: this.asString(
-            value.externalId,
-            `REQ_EDIT_${String(index + 1).padStart(3, '0')}`,
-          ),
-          module: this.asString(value.module, 'General'),
-          feature: this.asString(value.feature, 'Requirement'),
-          type: 'FUNCTIONAL' as const,
-          priority: 'MEDIUM' as const,
-          testable: Boolean(value.testable ?? true),
-          content: this.asString(value.content, ''),
-          metadata: value.metadata ?? {},
-        };
-      }),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.requirementItem.deleteMany({
+        where: { requirementVersionId: id },
+      });
+      await tx.requirementItem.createMany({
+        data: (body.items ?? []).map((item, index) => {
+          const value = item as Record<string, unknown>;
+          return {
+            requirementVersionId: id,
+            externalId: this.asString(
+              value.externalId,
+              `REQ_EDIT_${String(index + 1).padStart(3, '0')}`,
+            ),
+            module: this.asString(value.module, 'General'),
+            feature: this.asString(value.feature, 'Requirement'),
+            type: 'FUNCTIONAL' as const,
+            priority: 'MEDIUM' as const,
+            testable: Boolean(value.testable ?? true),
+            content: this.asString(value.content, ''),
+            metadata: value.metadata ?? {},
+          };
+        }),
+      });
     });
     return this.getRequirementVersion(id);
   }
   async queueQuality(id: string) {
     const version = await this.getRequirementVersion(id);
-    await this.prisma.requirementVersion.update({
-      where: { id },
-      data: {
-        qualityScore: 84,
-        qualityJson: this.qualityJson(),
-      },
-    });
-    await this.createAiCallLog(
-      version.projectId,
-      'requirement_quality_checker',
-      'SUCCEEDED',
-    );
-    return this.createWorkflowRun(version.projectId, 'requirement_quality', {
-      requirementVersionId: id,
+    return this.prisma.$transaction(async (tx) => {
+      await tx.requirementVersion.update({
+        where: { id },
+        data: {
+          qualityScore: 84,
+          qualityJson: this.qualityJson(),
+        },
+      });
+      await this.createAiCallLog(
+        tx,
+        version.projectId,
+        'requirement_quality_checker',
+        'SUCCEEDED',
+      );
+      return this.createWorkflowRun(
+        tx,
+        version.projectId,
+        'requirement_quality',
+        {
+          requirementVersionId: id,
+        },
+      );
     });
   }
 
@@ -156,22 +194,29 @@ export class Phase1Service {
       orderBy: { createdAt: 'asc' },
     });
 
-    for (const gap of this.gapItems(version.projectId, id, items[0]?.id)) {
-      await this.prisma.gapItem.upsert({
-        where: {
-          requirementVersionId_externalId: {
-            requirementVersionId: id,
-            externalId: gap.externalId,
+    return this.prisma.$transaction(async (tx) => {
+      for (const gap of this.gapItems(version.projectId, id, items[0]?.id)) {
+        await tx.gapItem.upsert({
+          where: {
+            requirementVersionId_externalId: {
+              requirementVersionId: id,
+              externalId: gap.externalId,
+            },
           },
-        },
-        update: gap,
-        create: gap,
-      });
-    }
+          update: gap,
+          create: gap,
+        });
+      }
 
-    await this.createAiCallLog(version.projectId, 'gap_detector', 'SUCCEEDED');
-    return this.createWorkflowRun(version.projectId, 'gap_detection', {
-      requirementVersionId: id,
+      await this.createAiCallLog(
+        tx,
+        version.projectId,
+        'gap_detector',
+        'SUCCEEDED',
+      );
+      return this.createWorkflowRun(tx, version.projectId, 'gap_detection', {
+        requirementVersionId: id,
+      });
     });
   }
 
@@ -182,58 +227,76 @@ export class Phase1Service {
     });
   }
 
-  updateGap(id: string, dto: UpdateGapDto) {
-    return this.prisma.gapItem.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        resolutionNote: dto.resolutionNote,
-      },
-    });
+  async updateGap(id: string, dto: UpdateGapDto) {
+    try {
+      return await this.prisma.gapItem.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          resolutionNote: dto.resolutionNote,
+        },
+      });
+    } catch (error) {
+      this.throwNotFoundOnMissingRecord(error, `Gap ${id} was not found`);
+      throw error;
+    }
   }
 
   async rewriteRequirement(id: string) {
     const version = await this.getRequirementVersion(id);
-    const nextVersionNo =
-      (await this.prisma.requirementVersion.count({
-        where: { projectId: version.projectId },
-      })) + 1;
-    const rewritten = await this.prisma.requirementVersion.create({
-      data: {
-        projectId: version.projectId,
-        sourceArtifactId: version.sourceArtifactId,
-        versionNo: nextVersionNo,
-        status: 'REWRITTEN',
-        qualityScore: 90,
-        qualityJson: this.qualityJson(90),
-        contentJson: version.contentJson as Prisma.InputJsonValue,
-        contentMarkdown: `${version.contentMarkdown ?? this.requirementMarkdown()}\n\nRisk note: unresolved gaps require QA approval override.`,
-      },
-    });
     const items = await this.prisma.requirementItem.findMany({
       where: { requirementVersionId: id },
     });
-    await this.prisma.requirementItem.createMany({
-      data: items.map((item) => ({
-        requirementVersionId: rewritten.id,
-        externalId: item.externalId,
-        module: item.module,
-        feature: item.feature,
-        type: item.type,
-        priority: item.priority,
-        testable: item.testable,
-        content: item.content,
-        metadata: item.metadata as Prisma.InputJsonValue,
-      })),
-    });
-    await this.createAiCallLog(
-      version.projectId,
-      'requirement_rewriter',
-      'SUCCEEDED',
-    );
-    return this.createWorkflowRun(version.projectId, 'requirement_rewrite', {
-      requirementVersionId: rewritten.id,
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const nextVersionNo =
+          (await tx.requirementVersion.count({
+            where: { projectId: version.projectId },
+          })) + 1;
+        const rewritten = await tx.requirementVersion.create({
+          data: {
+            projectId: version.projectId,
+            sourceArtifactId: version.sourceArtifactId,
+            versionNo: nextVersionNo,
+            status: 'REWRITTEN',
+            qualityScore: 90,
+            qualityJson: this.qualityJson(90),
+            contentJson: version.contentJson as Prisma.InputJsonValue,
+            contentMarkdown: `${version.contentMarkdown ?? this.requirementMarkdown()}\n\nRisk note: unresolved gaps require QA approval override.`,
+          },
+        });
+        await tx.requirementItem.createMany({
+          data: items.map((item) => ({
+            requirementVersionId: rewritten.id,
+            externalId: item.externalId,
+            module: item.module,
+            feature: item.feature,
+            type: item.type,
+            priority: item.priority,
+            testable: item.testable,
+            content: item.content,
+            metadata: item.metadata as Prisma.InputJsonValue,
+          })),
+        });
+        await this.createAiCallLog(
+          tx,
+          version.projectId,
+          'requirement_rewriter',
+          'SUCCEEDED',
+        );
+        return this.createWorkflowRun(
+          tx,
+          version.projectId,
+          'requirement_rewrite',
+          {
+            requirementVersionId: rewritten.id,
+          },
+        );
+      });
+    } catch (error) {
+      this.throwConflictOnUniqueRace(error, 'Requirement version');
+      throw error;
+    }
   }
 
   async approveRequirement(id: string, dto: ApproveDto) {
@@ -241,6 +304,11 @@ export class Phase1Service {
     const openGaps = await this.prisma.gapItem.count({
       where: { requirementVersionId: id, status: 'OPEN' },
     });
+    if (openGaps > 0 && !dto.override) {
+      throw new ConflictException(
+        'Requirement version has unresolved gaps. Approve with override to continue.',
+      );
+    }
     const approved = await this.prisma.requirementVersion.update({
       where: { id },
       data: {
@@ -261,30 +329,43 @@ export class Phase1Service {
 
   async generateTestcases(id: string, dto: GenerateTestcasesDto) {
     const version = await this.getRequirementVersion(id);
-    const setVersionNo =
-      (await this.prisma.testcaseSet.count({
-        where: { projectId: version.projectId, requirementVersionId: id },
-      })) + 1;
-    const testcaseSet = await this.prisma.testcaseSet.create({
-      data: {
-        projectId: version.projectId,
-        requirementVersionId: id,
-        versionNo: setVersionNo,
-        status: 'GENERATED',
-        generationConfig: dto as Prisma.InputJsonValue,
-      },
-    });
-    await this.prisma.testCase.createMany({
-      data: this.testCases(testcaseSet.id),
-    });
-    await this.createAiCallLog(
-      version.projectId,
-      'testcase_generator',
-      'SUCCEEDED',
-    );
-    return this.createWorkflowRun(version.projectId, 'testcase_generation', {
-      testcaseSetId: testcaseSet.id,
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const setVersionNo =
+          (await tx.testcaseSet.count({
+            where: { projectId: version.projectId, requirementVersionId: id },
+          })) + 1;
+        const testcaseSet = await tx.testcaseSet.create({
+          data: {
+            projectId: version.projectId,
+            requirementVersionId: id,
+            versionNo: setVersionNo,
+            status: 'GENERATED',
+            generationConfig: dto as Prisma.InputJsonValue,
+          },
+        });
+        await tx.testCase.createMany({
+          data: this.testCases(testcaseSet.id),
+        });
+        await this.createAiCallLog(
+          tx,
+          version.projectId,
+          'testcase_generator',
+          'SUCCEEDED',
+        );
+        return this.createWorkflowRun(
+          tx,
+          version.projectId,
+          'testcase_generation',
+          {
+            testcaseSetId: testcaseSet.id,
+          },
+        );
+      });
+    } catch (error) {
+      this.throwConflictOnUniqueRace(error, 'Testcase set');
+      throw error;
+    }
   }
 
   async getTestcaseSet(id: string) {
@@ -296,18 +377,23 @@ export class Phase1Service {
     return set;
   }
 
-  updateTestCase(id: string, dto: UpdateTestCaseDto) {
-    return this.prisma.testCase.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        preconditions: dto.preconditions,
-        steps: dto.steps as Prisma.InputJsonValue,
-        expectedResult: dto.expectedResult,
-        priority: dto.priority,
-        status: dto.status,
-      },
-    });
+  async updateTestCase(id: string, dto: UpdateTestCaseDto) {
+    try {
+      return await this.prisma.testCase.update({
+        where: { id },
+        data: {
+          title: dto.title,
+          preconditions: dto.preconditions,
+          steps: dto.steps as Prisma.InputJsonValue,
+          expectedResult: dto.expectedResult,
+          priority: dto.priority,
+          status: dto.status,
+        },
+      });
+    } catch (error) {
+      this.throwNotFoundOnMissingRecord(error, `Test case ${id} was not found`);
+      throw error;
+    }
   }
 
   async checkCoverage(id: string) {
@@ -316,32 +402,39 @@ export class Phase1Service {
       where: { requirementVersionId: set.requirementVersionId },
       orderBy: { createdAt: 'asc' },
     });
-    for (const [index, item] of items.entries()) {
-      await this.prisma.coverageItem.upsert({
-        where: {
-          requirementItemId_testcaseSetId: {
+    return this.prisma.$transaction(async (tx) => {
+      for (const [index, item] of items.entries()) {
+        await tx.coverageItem.upsert({
+          where: {
+            requirementItemId_testcaseSetId: {
+              requirementItemId: item.id,
+              testcaseSetId: id,
+            },
+          },
+          update: {
+            status: index < 2 ? 'COVERED' : 'PARTIAL',
+            coveragePercent: index < 2 ? 100 : 50,
+            testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
+          },
+          create: {
+            requirementVersionId: set.requirementVersionId,
             requirementItemId: item.id,
             testcaseSetId: id,
+            status: index < 2 ? 'COVERED' : 'PARTIAL',
+            coveragePercent: index < 2 ? 100 : 50,
+            testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
           },
-        },
-        update: {
-          status: index < 2 ? 'COVERED' : 'PARTIAL',
-          coveragePercent: index < 2 ? 100 : 50,
-          testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
-        },
-        create: {
-          requirementVersionId: set.requirementVersionId,
-          requirementItemId: item.id,
-          testcaseSetId: id,
-          status: index < 2 ? 'COVERED' : 'PARTIAL',
-          coveragePercent: index < 2 ? 100 : 50,
-          testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
-        },
+        });
+      }
+      await this.createAiCallLog(
+        tx,
+        set.projectId,
+        'coverage_checker',
+        'SUCCEEDED',
+      );
+      return this.createWorkflowRun(tx, set.projectId, 'coverage_check', {
+        testcaseSetId: id,
       });
-    }
-    await this.createAiCallLog(set.projectId, 'coverage_checker', 'SUCCEEDED');
-    return this.createWorkflowRun(set.projectId, 'coverage_check', {
-      testcaseSetId: id,
     });
   }
 
@@ -364,19 +457,21 @@ export class Phase1Service {
 
   async exportExcel(id: string) {
     const set = await this.getTestcaseSet(id);
-    const exportArtifact = await this.prisma.exportArtifact.create({
-      data: {
-        projectId: set.projectId,
-        testcaseSetId: id,
-        format: 'xlsx',
-        status: 'SUCCEEDED',
-        fileName: `testcases-${set.versionNo}.xlsx`,
-        storageKey: `exports/${set.id}/testcases-${set.versionNo}.xlsx`,
-        sizeBytes: 8192,
-      },
-    });
-    return this.createWorkflowRun(set.projectId, 'excel_export', {
-      exportArtifactId: exportArtifact.id,
+    return this.prisma.$transaction(async (tx) => {
+      const exportArtifact = await tx.exportArtifact.create({
+        data: {
+          projectId: set.projectId,
+          testcaseSetId: id,
+          format: 'xlsx',
+          status: 'SUCCEEDED',
+          fileName: `testcases-${set.versionNo}.xlsx`,
+          storageKey: `exports/${set.id}/testcases-${set.versionNo}.xlsx`,
+          sizeBytes: 8192,
+        },
+      });
+      return this.createWorkflowRun(tx, set.projectId, 'excel_export', {
+        exportArtifactId: exportArtifact.id,
+      });
     });
   }
 
@@ -399,22 +494,43 @@ export class Phase1Service {
     };
   }
 
-  getWorkflowRun(id: string) {
-    return this.prisma.workflowRun.findUniqueOrThrow({ where: { id } });
+  async getWorkflowRun(id: string) {
+    const workflowRun = await this.prisma.workflowRun.findUnique({
+      where: { id },
+    });
+    if (!workflowRun)
+      throw new NotFoundException(`Workflow run ${id} was not found`);
+    return workflowRun;
   }
 
-  retryWorkflowRun(id: string) {
-    return this.prisma.workflowRun.update({
-      where: { id },
-      data: { status: 'QUEUED', errorReason: null, finishedAt: null },
-    });
+  async retryWorkflowRun(id: string) {
+    try {
+      return await this.prisma.workflowRun.update({
+        where: { id },
+        data: { status: 'QUEUED', errorReason: null, finishedAt: null },
+      });
+    } catch (error) {
+      this.throwNotFoundOnMissingRecord(
+        error,
+        `Workflow run ${id} was not found`,
+      );
+      throw error;
+    }
   }
 
-  cancelWorkflowRun(id: string) {
-    return this.prisma.workflowRun.update({
-      where: { id },
-      data: { status: 'CANCELED', finishedAt: new Date() },
-    });
+  async cancelWorkflowRun(id: string) {
+    try {
+      return await this.prisma.workflowRun.update({
+        where: { id },
+        data: { status: 'CANCELED', finishedAt: new Date() },
+      });
+    } catch (error) {
+      this.throwNotFoundOnMissingRecord(
+        error,
+        `Workflow run ${id} was not found`,
+      );
+      throw error;
+    }
   }
 
   listAiCallLogs(projectId: string) {
@@ -432,11 +548,12 @@ export class Phase1Service {
   }
 
   private createWorkflowRun(
+    client: PrismaService | Prisma.TransactionClient,
     projectId: string,
     workflowKey: string,
     outputJson?: unknown,
   ) {
-    return this.prisma.workflowRun.create({
+    return client.workflowRun.create({
       data: {
         projectId,
         traceId: `trace_${workflowKey}_${Date.now()}`,
@@ -451,11 +568,12 @@ export class Phase1Service {
   }
 
   private createAiCallLog(
+    client: PrismaService | Prisma.TransactionClient,
     projectId: string,
     skillName: string,
     status: string,
   ) {
-    return this.prisma.aiCallLog.create({
+    return client.aiCallLog.create({
       data: {
         projectId,
         traceId: `trace_${skillName}_${Date.now()}`,
@@ -474,6 +592,26 @@ export class Phase1Service {
 
   private asString(value: unknown, fallback: string) {
     return typeof value === 'string' ? value : fallback;
+  }
+
+  private throwNotFoundOnMissingRecord(error: unknown, message: string) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      throw new NotFoundException(message);
+    }
+  }
+
+  private throwConflictOnUniqueRace(error: unknown, label: string) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        `${label} version conflict. Please retry the workflow.`,
+      );
+    }
   }
 
   private requirementJson(language: string) {
