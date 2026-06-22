@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coverage_schema_v1",
+  "title": "Coverage Checker Output",
+  "type": "object",
+  "required": ["coveragePercent", "denominatorPolicy", "items"],
+  "properties": {
+    "coveragePercent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "denominatorPolicy": { "type": "string", "const": "exclude_not_testable" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirementId", "status", "testcaseRefs"],
+        "properties": {
+          "requirementId": { "type": "string" },
+          "status": { "type": "string", "enum": ["COVERED", "PARTIAL", "MISSING", "NOT_TESTABLE"] },
+          "testcaseRefs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "reason": { "type": "string" },
+          "recommendedAction": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

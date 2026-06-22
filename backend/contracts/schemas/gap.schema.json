@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gap_schema_v1",
+  "title": "Gap Detector Output",
+  "type": "object",
+  "required": ["gaps"],
+  "properties": {
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "requirementId", "category", "severity", "confidence", "evidence", "description", "suggestedResolution"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^GAP_[A-Z0-9]+_[0-9]{3}$" },
+          "requirementId": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": ["missing_flow", "ambiguous_rule", "missing_validation", "missing_error_state", "inconsistent_term", "untestable", "dependency_gap", "edge_case_gap", "data_gap", "security_gap"]
+          },
+          "severity": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "suggestedResolution": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

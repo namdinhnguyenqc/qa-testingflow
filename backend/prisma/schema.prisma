@@ -1,0 +1,439 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["aiqa_dev"]
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@schema("aiqa_dev")
+}
+
+enum ArtifactType {
+  DOCUMENT
+  SPREADSHEET
+  IMAGE
+  TEXT
+  FIGMA
+
+  @@schema("aiqa_dev")
+}
+
+enum ArtifactStatus {
+  UPLOADED
+  PARSING
+  PARSED
+  FAILED
+
+  @@schema("aiqa_dev")
+}
+
+enum ConfigStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@schema("aiqa_dev")
+}
+
+enum RequirementVersionStatus {
+  DRAFT
+  ANALYZED
+  REWRITTEN
+  APPROVED
+  LOCKED
+
+  @@schema("aiqa_dev")
+}
+
+enum RequirementItemType {
+  FUNCTIONAL
+  NON_FUNCTIONAL
+  BUSINESS_RULE
+  UI
+  DATA
+  INTEGRATION
+  OTHER
+
+  @@schema("aiqa_dev")
+}
+
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+
+  @@schema("aiqa_dev")
+}
+
+enum GapSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+
+  @@schema("aiqa_dev")
+}
+
+enum GapStatus {
+  OPEN
+  RESOLVED
+  ACCEPTED_RISK
+  REJECTED
+
+  @@schema("aiqa_dev")
+}
+
+enum TestcaseSetStatus {
+  DRAFT
+  GENERATED
+  NEEDS_REVIEW
+  APPROVED
+
+  @@schema("aiqa_dev")
+}
+
+enum TestcaseStatus {
+  DRAFT
+  READY
+  APPROVED
+  REJECTED
+  NEEDS_REVIEW
+
+  @@schema("aiqa_dev")
+}
+
+enum CoverageStatus {
+  COVERED
+  PARTIAL
+  MISSING
+  NOT_TESTABLE
+
+  @@schema("aiqa_dev")
+}
+
+enum WorkflowStatus {
+  QUEUED
+  RUNNING
+  WAITING_USER
+  SUCCEEDED
+  FAILED
+  CANCELED
+
+  @@schema("aiqa_dev")
+}
+
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+
+  @@schema("aiqa_dev")
+}
+
+model Project {
+  id              String          @id @default(uuid())
+  name            String
+  description     String?
+  status          ProjectStatus   @default(ACTIVE)
+  defaultLanguage String          @default("vi")
+  configOverrides Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  artifacts       Artifact[]
+  configVersions  ConfigVersion[]
+  requirementVersions RequirementVersion[]
+  gaps            GapItem[]
+  testcaseSets    TestcaseSet[]
+  workflowRuns    WorkflowRun[]
+  aiCallLogs      AiCallLog[]
+  auditLogs       AuditLog[]
+  exportArtifacts ExportArtifact[]
+
+  @@map("projects")
+  @@schema("aiqa_dev")
+}
+
+model Artifact {
+  id            String         @id @default(uuid())
+  projectId     String
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type          ArtifactType
+  status        ArtifactStatus @default(UPLOADED)
+  fileName      String?
+  mimeType      String?
+  sizeBytes     Int?
+  storageKey    String?
+  sourceText    String?
+  parsedContent Json?
+  errorReason   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  requirementVersions RequirementVersion[]
+
+  @@index([projectId])
+  @@map("artifacts")
+  @@schema("aiqa_dev")
+}
+
+model ConfigVersion {
+  id          String       @id @default(uuid())
+  projectId   String?
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  versionNo   Int
+  status      ConfigStatus @default(DRAFT)
+  contentJson Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([projectId, name, versionNo])
+  @@index([projectId])
+  @@map("config_versions")
+  @@schema("aiqa_dev")
+}
+
+model RequirementVersion {
+  id              String                   @id @default(uuid())
+  projectId       String
+  project         Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceArtifactId String?
+  sourceArtifact  Artifact?                @relation(fields: [sourceArtifactId], references: [id], onDelete: SetNull)
+  versionNo       Int
+  status          RequirementVersionStatus @default(DRAFT)
+  qualityScore    Float?
+  qualityJson     Json?
+  contentJson     Json
+  contentMarkdown String?
+  approvedAt      DateTime?
+  lockedAt        DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  items           RequirementItem[]
+  gaps            GapItem[]
+  testcaseSets    TestcaseSet[]
+  coverageItems   CoverageItem[]
+
+  @@unique([projectId, versionNo])
+  @@index([projectId])
+  @@index([sourceArtifactId])
+  @@map("requirement_versions")
+  @@schema("aiqa_dev")
+}
+
+model RequirementItem {
+  id                   String              @id @default(uuid())
+  requirementVersionId String
+  requirementVersion   RequirementVersion  @relation(fields: [requirementVersionId], references: [id], onDelete: Cascade)
+  externalId           String
+  module               String
+  feature              String
+  type                 RequirementItemType @default(FUNCTIONAL)
+  priority             Priority            @default(MEDIUM)
+  testable             Boolean             @default(true)
+  content              String
+  metadata             Json?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  gaps                 GapItem[]
+  coverageItems        CoverageItem[]
+
+  @@unique([requirementVersionId, externalId])
+  @@index([requirementVersionId])
+  @@map("requirement_items")
+  @@schema("aiqa_dev")
+}
+
+model GapItem {
+  id                   String              @id @default(uuid())
+  projectId            String
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementVersionId String
+  requirementVersion   RequirementVersion  @relation(fields: [requirementVersionId], references: [id], onDelete: Cascade)
+  requirementItemId     String?
+  requirementItem       RequirementItem?    @relation(fields: [requirementItemId], references: [id], onDelete: SetNull)
+  externalId            String
+  category             String
+  severity             GapSeverity
+  status               GapStatus           @default(OPEN)
+  confidence           Float
+  evidence             String
+  description          String
+  resolutionNote       String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([requirementVersionId, externalId])
+  @@index([projectId])
+  @@index([requirementVersionId])
+  @@index([requirementItemId])
+  @@map("gap_items")
+  @@schema("aiqa_dev")
+}
+
+model TestcaseSet {
+  id                   String                 @id @default(uuid())
+  projectId            String
+  project              Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementVersionId String
+  requirementVersion   RequirementVersion     @relation(fields: [requirementVersionId], references: [id], onDelete: Cascade)
+  versionNo            Int
+  status               TestcaseSetStatus      @default(DRAFT)
+  generationConfig     Json?
+  approvedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  testCases            TestCase[]
+  coverageItems        CoverageItem[]
+  exports              ExportArtifact[]
+
+  @@unique([projectId, requirementVersionId, versionNo])
+  @@index([projectId])
+  @@index([requirementVersionId])
+  @@map("testcase_sets")
+  @@schema("aiqa_dev")
+}
+
+model TestCase {
+  id              String         @id @default(uuid())
+  testcaseSetId   String
+  testcaseSet     TestcaseSet    @relation(fields: [testcaseSetId], references: [id], onDelete: Cascade)
+  externalId      String
+  module          String?
+  feature         String?
+  title           String
+  preconditions   String?
+  steps           Json
+  expectedResult  String
+  priority        Priority       @default(MEDIUM)
+  type            String
+  status          TestcaseStatus @default(DRAFT)
+  requirementRefs Json
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([testcaseSetId, externalId])
+  @@index([testcaseSetId])
+  @@map("test_cases")
+  @@schema("aiqa_dev")
+}
+
+model CoverageItem {
+  id                   String             @id @default(uuid())
+  requirementVersionId String
+  requirementVersion   RequirementVersion @relation(fields: [requirementVersionId], references: [id], onDelete: Cascade)
+  requirementItemId     String
+  requirementItem       RequirementItem    @relation(fields: [requirementItemId], references: [id], onDelete: Cascade)
+  testcaseSetId         String
+  testcaseSet           TestcaseSet        @relation(fields: [testcaseSetId], references: [id], onDelete: Cascade)
+  status               CoverageStatus
+  coveragePercent      Float?
+  testcaseRefs         Json?
+  evidence             Json?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([requirementItemId, testcaseSetId])
+  @@index([requirementVersionId])
+  @@index([testcaseSetId])
+  @@map("coverage_items")
+  @@schema("aiqa_dev")
+}
+
+model WorkflowRun {
+  id          String         @id @default(uuid())
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  traceId     String         @unique
+  workflowKey String
+  status      WorkflowStatus @default(QUEUED)
+  inputJson   Json?
+  outputJson  Json?
+  errorReason String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@map("workflow_runs")
+  @@schema("aiqa_dev")
+}
+
+model AiCallLog {
+  id            String   @id @default(uuid())
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  traceId       String?
+  provider      String
+  model         String
+  skillName     String
+  skillVersion  String?
+  promptVersion String?
+  inputTokens   Int?
+  outputTokens  Int?
+  totalTokens   Int?
+  costUsd       Float?
+  status        String
+  errorReason   String?
+  createdAt     DateTime @default(now())
+
+  @@index([projectId])
+  @@index([traceId])
+  @@map("ai_call_logs")
+  @@schema("aiqa_dev")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  beforeJson  Json?
+  afterJson   Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([action])
+  @@map("audit_logs")
+  @@schema("aiqa_dev")
+}
+
+model ExportArtifact {
+  id            String       @id @default(uuid())
+  projectId     String
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testcaseSetId String?
+  testcaseSet   TestcaseSet? @relation(fields: [testcaseSetId], references: [id], onDelete: SetNull)
+  format        String       @default("xlsx")
+  status        ExportStatus @default(QUEUED)
+  fileName      String?
+  storageKey    String?
+  sizeBytes     Int?
+  errorReason   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([testcaseSetId])
+  @@map("export_artifacts")
+  @@schema("aiqa_dev")
+}
