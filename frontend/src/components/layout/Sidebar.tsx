@@ -7,7 +7,6 @@ import {
   FolderOpen,
   Settings,
   ClipboardList,
-  LogOut,
   Cpu,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -66,11 +65,6 @@ function NavItemLink({ href, label, icon: Icon }: NavItem) {
 }
 
 export function Sidebar() {
-  function handleLogout() {
-    document.cookie = 'auth-token=; Max-Age=0; path=/';
-    window.location.href = '/login';
-  }
-
   return (
     <aside className="w-60 flex-shrink-0 bg-white flex flex-col border-r border-gray-100 h-full">
       {/* Logo area */}
@@ -84,11 +78,11 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         {navSections.map((section) => (
-          <div key={section.label}>
-            <p className="text-xs text-gray-400 uppercase font-semibold px-3 mb-1 mt-4 first:mt-0 tracking-wider">
+          <div key={section.label} className="mb-4">
+            <p className="text-xs text-gray-400 uppercase font-semibold px-3 mb-2 tracking-wider">
               {section.label}
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {section.items.map((item) => (
                 <NavItemLink key={item.href} {...item} />
               ))}
@@ -96,29 +90,6 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Bottom user section */}
-      <div className="border-t border-gray-100">
-        <div className="p-3 flex items-center gap-3">
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-semibold">A</span>
-          </div>
-          {/* User info */}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">Admin</p>
-            <p className="text-xs text-gray-400 truncate">admin@gmail.com</p>
-          </div>
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
-            title="Đăng xuất"
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
-      </div>
     </aside>
   );
 }
