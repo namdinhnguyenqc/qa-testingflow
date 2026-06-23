@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const protectedPrefixes = ['/dashboard', '/projects', '/config'];
+const protectedPrefixes = ['/dashboard', '/projects', '/configs', '/audit-logs'];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = protectedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),

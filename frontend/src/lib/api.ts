@@ -169,9 +169,11 @@ export const configsApi = {
     apiClient.post(`/projects/${projectId}/configs/budget`, body).then((r) => r.data),
   getCostSummary: (projectId: string, period?: string) =>
     apiClient.get<CostSummary>(`/projects/${projectId}/cost-summary`, { params: period ? { period } : {} }).then((r) => r.data),
+  getGlobalCostSummary: (period?: string) =>
+    apiClient.get<CostSummary>('/cost-summary', { params: period ? { period } : {} }).then((r) => r.data),
 };
 
 export const aiGatewayApi = {
   testConnection: (providerId: string) =>
-    apiClient.post<AiProviderConnectionResult>(`/ai-gateway/providers/${providerId}/test-connection`).then((r) => r.data),
+    apiClient.post<AiProviderConnectionResult>(`/configs/ai-providers/${providerId}/test-connection`).then((r) => r.data),
 };

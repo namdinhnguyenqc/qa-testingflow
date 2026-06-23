@@ -79,6 +79,11 @@ export class Phase2Controller {
 
   // ─── Cost tracking (A2.6) ─────────────────────────────────────────────
 
+  @Get('cost-summary')
+  getGlobalCostSummary(@Query() query: CostSummaryQueryDto) {
+    return this.phase2Service.getCostSummary(null, query);
+  }
+
   @Get('projects/:projectId/cost-summary')
   getCostSummary(
     @Param('projectId') projectId: string,

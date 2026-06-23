@@ -251,7 +251,14 @@ export class Phase1Service {
   async getRequirementVersion(id: string) {
     const version = await this.prisma.requirementVersion.findUnique({
       where: { id },
-      include: { items: true, gaps: true },
+      include: {
+        items: true,
+        gaps: true,
+        testcaseSets: {
+          select: { id: true, versionNo: true, status: true, createdAt: true },
+          orderBy: { versionNo: 'asc' },
+        },
+      },
     });
     if (!version)
       throw new NotFoundException(`Requirement version ${id} was not found`);

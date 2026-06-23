@@ -199,12 +199,12 @@ export class Phase2Service {
 
   // ─── A2.6 Cost tracking ──────────────────────────────────────────────────
 
-  async getCostSummary(projectId: string, dto: CostSummaryQueryDto) {
+  async getCostSummary(projectId: string | null, dto: CostSummaryQueryDto) {
     const since = this.periodStart(dto.period ?? 'month');
 
     const logs = await this.prisma.aiCallLog.findMany({
       where: {
-        projectId,
+        ...(projectId ? { projectId } : {}),
         createdAt: { gte: since },
       },
       select: {
@@ -252,7 +252,7 @@ export class Phase2Service {
     const totalCostUsd = breakdown.reduce((sum, g) => sum + g.costUsd, 0);
 
     return {
-      projectId,
+      projectId: projectId ?? 'global',
       period: dto.period ?? 'month',
       since: since.toISOString(),
       totalCostUsd: Math.round(totalCostUsd * 1_000_000) / 1_000_000,

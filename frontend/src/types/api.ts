@@ -109,6 +109,7 @@ export interface RequirementVersion {
   approvedAt?: string | null;
   lockedAt?: string | null;
   items: RequirementItem[];
+  testcaseSets?: { id: string; versionNo: number; status: TestcaseSetStatus; createdAt: string }[];
   createdAt: string;
   updatedAt: string;
 }

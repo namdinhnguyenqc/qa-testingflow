@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, Pencil } from 'lucide-react';
-import { projectsApi, requirementsApi, testcasesApi } from '@/lib/api';
+import { projectsApi, requirementsApi } from '@/lib/api';
 import { ProjectStepper } from '@/components/project-detail/ProjectStepper';
 import { TabInput } from '@/components/project-detail/TabInput';
 import { TabAnalyze } from '@/components/project-detail/TabAnalyze';
@@ -53,7 +53,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     queryFn: async () => {
       if (!requirementVersionId) return null;
       const version = await requirementsApi.getVersion(requirementVersionId);
-      const sets = (version as { testcaseSets?: { id: string; versionNo: number }[] }).testcaseSets;
+      const sets = version.testcaseSets;
       if (sets?.length) {
         const latest = sets[sets.length - 1];
         setTestcaseSetId(latest.id);

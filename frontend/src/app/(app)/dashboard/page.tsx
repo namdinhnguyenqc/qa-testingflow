@@ -22,7 +22,7 @@ export default function DashboardPage() {
 
   const { data: costSummary } = useQuery({
     queryKey: ['cost-summary-global'],
-    queryFn: () => configsApi.getCostSummary('global', 'month').catch(() => null),
+    queryFn: () => configsApi.getGlobalCostSummary('month').catch(() => null),
     retry: false,
   });
 
