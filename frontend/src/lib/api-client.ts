@@ -8,11 +8,5 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      document.cookie = 'auth-token=; Max-Age=0; path=/';
-      window.location.href = '/login';
-    }
-    return Promise.reject(err);
-  },
+  (err) => Promise.reject(err),
 );
