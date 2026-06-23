@@ -234,3 +234,72 @@ export interface AuditLog {
   metadata?: unknown | null;
   createdAt: string;
 }
+
+// ── Phase 2 types ──────────────────────────────────────────────────────────
+
+export interface PromptVersion {
+  id: string;
+  name: string;
+  versionNo: number;
+  isActive: boolean;
+  content: string;
+  variables?: unknown | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromptVersionRequest {
+  name: string;
+  content: string;
+  variables?: Record<string, string>;
+  notes?: string;
+}
+
+export interface GateConfig {
+  id: string;
+  projectId?: string | null;
+  name: string;
+  contentJson: { minQualityScore: number; blockIfOpenGaps: boolean };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateGateConfigRequest {
+  minQualityScore?: number;
+  blockIfOpenGaps?: boolean;
+}
+
+export interface BudgetStatus {
+  projectId: string;
+  budgetUsd: number;
+  spentUsd: number;
+  usagePercent: number;
+  warning: boolean;
+  exceeded: boolean;
+}
+
+export interface CostSummaryBreakdown {
+  provider: string;
+  model: string;
+  calls: number;
+  totalTokens: number;
+  costUsd: number;
+  errors: number;
+}
+
+export interface CostSummary {
+  projectId: string;
+  period: string;
+  since: string;
+  totalCostUsd: number;
+  totalCalls: number;
+  breakdown: CostSummaryBreakdown[];
+}
+
+export interface AiProviderConnectionResult {
+  ok: boolean;
+  provider: string;
+  models: string[];
+  secretRef: string | null;
+}

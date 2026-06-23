@@ -33,6 +33,8 @@ export function TabTestcaseGeneration({ requirementVersionId, isApproved, onGene
       }),
     onSuccess: (run) => {
       setRunId(run.id);
+      const setId = (run.outputJson as { testcaseSetId?: string })?.testcaseSetId;
+      if (setId) onGenerated?.(setId);
     },
   });
 

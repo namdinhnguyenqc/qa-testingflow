@@ -1,0 +1,116 @@
+'use client';
+
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { auditApi } from '@/lib/api';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Badge } from '@/components/ui/Badge';
+import { PageSpinner } from '@/components/ui/Spinner';
+
+const ACTION_COLORS: Record<string, 'success' | 'info' | 'warning' | 'danger' | 'muted'> = {
+  ARTIFACT_PARSED: 'success',
+  REQUIREMENT_ANALYZED: 'success',
+  REQUIREMENT_APPROVED: 'success',
+  REQUIREMENT_REWRITTEN: 'info',
+  GAP_RESOLVED: 'info',
+  TESTCASE_GENERATED: 'success',
+  TESTCASE_APPROVED: 'success',
+  TESTCASE_REJECTED: 'danger',
+  EXPORT_CREATED: 'info',
+  AI_CALL: 'muted',
+  BUDGET_WARNING: 'warning',
+  BUDGET_EXCEEDED: 'danger',
+};
+
+export default function AuditLogsPage() {
+  const [projectId, setProjectId] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
+
+  const { data: logs, isLoading } = useQuery({
+    queryKey: ['audit-logs', projectId, actionFilter],
+    queryFn: () =>
+      auditApi.listAll({
+        projectId: projectId || undefined,
+        action: actionFilter || undefined,
+      }),
+    refetchInterval: 30_000,
+  });
+
+  return (
+    <div className="p-8">
+      <PageHeader title="Audit Log" subtitle="Lịch sử hoạt động hệ thống" />
+
+      {/* Filters */}
+      <div className="flex gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Lọc theo Project ID..."
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="h-9 w-64 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <input
+          type="text"
+          placeholder="Lọc theo action (VD: ARTIFACT_PARSED)..."
+          value={actionFilter}
+          onChange={(e) => setActionFilter(e.target.value)}
+          className="h-9 w-80 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      {isLoading ? (
+        <PageSpinner />
+      ) : !logs?.length ? (
+        <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+          Không có audit log nào phù hợp.
+        </div>
+      ) : (
+        <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Thời gian</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Entity</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project ID</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {logs.map((log) => (
+                <tr key={log.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(log.createdAt).toLocaleString('vi-VN')}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={ACTION_COLORS[log.action] ?? 'muted'} className="text-xs">
+                      {log.action}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    <span className="font-medium">{log.entityType}</span>
+                    {log.entityId && (
+                      <span className="text-muted-foreground ml-1 font-mono">
+                        {log.entityId.slice(0, 8)}…
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+                    {log.projectId ? log.projectId.slice(0, 8) + '…' : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {log.actorId ?? 'system'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {logs && (
+        <p className="text-xs text-muted-foreground mt-3">{logs.length} bản ghi · Auto-refresh mỗi 30s</p>
+      )}
+    </div>
+  );
+}

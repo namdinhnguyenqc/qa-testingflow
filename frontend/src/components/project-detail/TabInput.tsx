@@ -54,16 +54,22 @@ export function TabInput({ projectId, onParsed }: Props) {
   const jobStatus = useJobStatus(parseRunId);
 
   const createAndParseMutation = useMutation({
-    mutationFn: async (params: { type: 'DOCUMENT' | 'TEXT' | 'FIGMA'; fileName?: string; mimeType?: string; sizeBytes?: number; sourceText?: string }) => {
-      const { type, ...rest } = params;
-      const artifact = await artifactsApi.create(projectId, { type, ...rest });
+    mutationFn: async (params: { type: 'DOCUMENT' | 'TEXT' | 'FIGMA'; file?: File; fileName?: string; mimeType?: string; sizeBytes?: number; sourceText?: string }) => {
+      const { type, file, ...rest } = params;
+      let artifact;
+      if (file) {
+        artifact = await artifactsApi.upload(projectId, file);
+      } else {
+        artifact = await artifactsApi.create(projectId, { type, ...rest });
+      }
       const run = await artifactsApi.parse(artifact.id);
       return { artifact, run };
     },
     onSuccess: ({ run }) => {
       queryClient.invalidateQueries({ queryKey: ['artifacts', projectId] });
       setParseRunId(run.id);
-      if (jobStatus.isSucceeded) onParsed?.(run.id);
+      const artifactId = (run.outputJson as { artifactId?: string })?.artifactId;
+      if (artifactId) onParsed?.(artifactId);
     },
   });
 
@@ -80,12 +86,7 @@ export function TabInput({ projectId, onParsed }: Props) {
     const err = validateFile(file);
     if (err) { setFileError(err); return; }
     setFileError('');
-    createAndParseMutation.mutate({
-      type: file.type.startsWith('image/') ? 'DOCUMENT' : 'DOCUMENT',
-      fileName: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-    });
+    createAndParseMutation.mutate({ type: 'DOCUMENT', file });
   }
 
   function handleDrop(e: React.DragEvent) {

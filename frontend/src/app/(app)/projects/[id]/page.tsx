@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, Pencil } from 'lucide-react';
-import { projectsApi } from '@/lib/api';
+import { projectsApi, requirementsApi, testcasesApi } from '@/lib/api';
 import { ProjectStepper } from '@/components/project-detail/ProjectStepper';
 import { TabInput } from '@/components/project-detail/TabInput';
 import { TabAnalyze } from '@/components/project-detail/TabAnalyze';
@@ -22,15 +22,46 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState<ProjectTab>('input');
 
-  // State shared across tabs (normally would come from server/query)
   const [artifactId, setArtifactId] = useState<string | undefined>();
-  const [requirementVersionId, setRequirementVersionId] = useState<string | null>('rv-001'); // mock seed
+  const [requirementVersionId, setRequirementVersionId] = useState<string | null>(null);
   const [isRequirementApproved, setIsRequirementApproved] = useState(false);
-  const [testcaseSetId, setTestcaseSetId] = useState<string | null>('tcs-001'); // mock seed
+  const [testcaseSetId, setTestcaseSetId] = useState<string | null>(null);
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id],
     queryFn: () => projectsApi.get(id),
+  });
+
+  // Bootstrap: load latest requirement version and testcase set on first mount
+  useQuery({
+    queryKey: ['requirement-versions-bootstrap', id],
+    queryFn: () => requirementsApi.listVersions(id),
+    enabled: !requirementVersionId,
+    select: (versions) => {
+      if (!versions.length) return null;
+      const latest = versions[versions.length - 1];
+      setRequirementVersionId(latest.id);
+      if (latest.status === 'APPROVED' || latest.status === 'LOCKED') {
+        setIsRequirementApproved(true);
+      }
+      return latest;
+    },
+  });
+
+  useQuery({
+    queryKey: ['testcase-set-bootstrap', requirementVersionId],
+    queryFn: async () => {
+      if (!requirementVersionId) return null;
+      const version = await requirementsApi.getVersion(requirementVersionId);
+      const sets = (version as { testcaseSets?: { id: string; versionNo: number }[] }).testcaseSets;
+      if (sets?.length) {
+        const latest = sets[sets.length - 1];
+        setTestcaseSetId(latest.id);
+        return latest;
+      }
+      return null;
+    },
+    enabled: !!requirementVersionId && !testcaseSetId,
   });
 
   if (isLoading) return <PageSpinner />;
@@ -75,53 +106,55 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 min-h-full">
-        {activeTab === 'input' && (
-          <TabInput
-            projectId={id}
-            onParsed={(artId) => {
-              setArtifactId(artId);
-              setActiveTab('analyze');
-            }}
-          />
-        )}
-        {activeTab === 'analyze' && (
-          <TabAnalyze
-            projectId={id}
-            requirementVersionId={requirementVersionId}
-            artifactId={artifactId}
-          />
-        )}
-        {activeTab === 'gap-review' && (
-          <TabGapReview requirementVersionId={requirementVersionId} />
-        )}
-        {activeTab === 'final-requirement' && (
-          <TabFinalRequirement
-            requirementVersionId={requirementVersionId}
-            onApproved={() => {
-              setIsRequirementApproved(true);
-              setActiveTab('testcase-generation');
-            }}
-          />
-        )}
-        {activeTab === 'testcase-generation' && (
-          <TabTestcaseGeneration
-            requirementVersionId={requirementVersionId}
-            isApproved={isRequirementApproved}
-            onGenerated={(setId) => {
-              setTestcaseSetId(setId);
-              setActiveTab('testcase-review');
-            }}
-          />
-        )}
-        {activeTab === 'testcase-review' && (
-          <TabTestcaseReview testcaseSetId={testcaseSetId} />
-        )}
-        {activeTab === 'coverage' && (
-          <TabCoverage testcaseSetId={testcaseSetId} />
-        )}
-        {activeTab === 'export' && (
-          <TabExport projectId={id} testcaseSetId={testcaseSetId} />
-        )}
+          {activeTab === 'input' && (
+            <TabInput
+              projectId={id}
+              onParsed={(artifactIdOrRunId) => {
+                setArtifactId(artifactIdOrRunId);
+                setActiveTab('analyze');
+              }}
+            />
+          )}
+          {activeTab === 'analyze' && (
+            <TabAnalyze
+              projectId={id}
+              requirementVersionId={requirementVersionId}
+              artifactId={artifactId}
+              onAnalyzed={(rvId) => setRequirementVersionId(rvId)}
+            />
+          )}
+          {activeTab === 'gap-review' && (
+            <TabGapReview requirementVersionId={requirementVersionId} />
+          )}
+          {activeTab === 'final-requirement' && (
+            <TabFinalRequirement
+              requirementVersionId={requirementVersionId}
+              onApproved={(rvId) => {
+                setRequirementVersionId(rvId);
+                setIsRequirementApproved(true);
+                setActiveTab('testcase-generation');
+              }}
+            />
+          )}
+          {activeTab === 'testcase-generation' && (
+            <TabTestcaseGeneration
+              requirementVersionId={requirementVersionId}
+              isApproved={isRequirementApproved}
+              onGenerated={(setId) => {
+                setTestcaseSetId(setId);
+                setActiveTab('testcase-review');
+              }}
+            />
+          )}
+          {activeTab === 'testcase-review' && (
+            <TabTestcaseReview testcaseSetId={testcaseSetId} />
+          )}
+          {activeTab === 'coverage' && (
+            <TabCoverage testcaseSetId={testcaseSetId} />
+          )}
+          {activeTab === 'export' && (
+            <TabExport projectId={id} testcaseSetId={testcaseSetId} />
+          )}
         </div>
       </div>
     </div>

@@ -2,8 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { FolderOpen, Plus, ArrowRight, LayoutGrid, Cpu } from 'lucide-react';
-import { projectsApi } from '@/lib/api';
+import { FolderOpen, Plus, ArrowRight, LayoutGrid, Cpu, DollarSign } from 'lucide-react';
+import { projectsApi, configsApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -20,6 +20,12 @@ export default function DashboardPage() {
   const activeCount = projects?.filter((p) => p.status === 'ACTIVE').length ?? 0;
   const totalCount = projects?.length ?? 0;
 
+  const { data: costSummary } = useQuery({
+    queryKey: ['cost-summary-global'],
+    queryFn: () => configsApi.getCostSummary('global', 'month').catch(() => null),
+    retry: false,
+  });
+
   return (
     <div className="p-8">
       <PageHeader title="Dashboard" subtitle="Tổng quan nền tảng AI QA">
@@ -32,7 +38,7 @@ export default function DashboardPage() {
       </PageHeader>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Dự án đang hoạt động"
           value={isLoading ? '—' : activeCount}
@@ -53,6 +59,14 @@ export default function DashboardPage() {
           icon={Cpu}
           iconBg="bg-green-100"
           iconColor="text-green-600"
+        />
+        <StatCard
+          title="Chi phí AI (tháng này)"
+          value={costSummary ? `$${costSummary.totalCostUsd.toFixed(4)}` : '—'}
+          subtitle={costSummary ? `${costSummary.totalCalls} lần gọi` : undefined}
+          icon={DollarSign}
+          iconBg="bg-amber-100"
+          iconColor="text-amber-600"
         />
       </div>
 

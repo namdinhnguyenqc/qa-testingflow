@@ -20,6 +20,13 @@ import type {
   ExportArtifact,
   AnalyzeRequirementRequest,
   AuditLog,
+  PromptVersion,
+  CreatePromptVersionRequest,
+  GateConfig,
+  UpdateGateConfigRequest,
+  BudgetStatus,
+  CostSummary,
+  AiProviderConnectionResult,
 } from '@/types/api';
 
 // Projects
@@ -40,12 +47,21 @@ export const artifactsApi = {
     apiClient.get<Artifact[]>(`/projects/${projectId}/artifacts`).then((r) => r.data),
   create: (projectId: string, body: CreateArtifactRequest) =>
     apiClient.post<Artifact>(`/projects/${projectId}/artifacts`, body).then((r) => r.data),
+  upload: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<Artifact>(`/projects/${projectId}/artifacts/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
   parse: (artifactId: string) =>
     apiClient.post<WorkflowRun>(`/artifacts/${artifactId}/parse`).then((r) => r.data),
 };
 
 // Requirements
 export const requirementsApi = {
+  listVersions: (projectId: string) =>
+    apiClient.get<RequirementVersion[]>(`/projects/${projectId}/requirement-versions`).then((r) => r.data),
   analyze: (projectId: string, body: AnalyzeRequirementRequest) =>
     apiClient
       .post<WorkflowRun>(`/projects/${projectId}/requirements/analyze`, body)
@@ -127,4 +143,35 @@ export const workflowApi = {
 export const auditApi = {
   list: (projectId: string) =>
     apiClient.get<AuditLog[]>(`/projects/${projectId}/audit-logs`).then((r) => r.data),
+  listAll: (params?: { projectId?: string; action?: string }) =>
+    apiClient.get<AuditLog[]>('/audit-logs', { params }).then((r) => r.data),
+};
+
+// ── Phase 2 ────────────────────────────────────────────────────────────────
+
+export const promptsApi = {
+  list: (name?: string) =>
+    apiClient.get<PromptVersion[]>('/configs/prompt-versions', { params: name ? { name } : {} }).then((r) => r.data),
+  create: (body: CreatePromptVersionRequest) =>
+    apiClient.post<PromptVersion>('/configs/prompt-versions', body).then((r) => r.data),
+  activate: (id: string) =>
+    apiClient.post<PromptVersion>(`/configs/prompt-versions/${id}/activate`).then((r) => r.data),
+};
+
+export const configsApi = {
+  getGate: (projectId: string) =>
+    apiClient.get<GateConfig | null>(`/projects/${projectId}/configs/gate`).then((r) => r.data),
+  upsertGate: (projectId: string, body: UpdateGateConfigRequest) =>
+    apiClient.post<GateConfig>(`/projects/${projectId}/configs/gate`, body).then((r) => r.data),
+  getBudgetStatus: (projectId: string) =>
+    apiClient.get<BudgetStatus>(`/projects/${projectId}/budget-status`).then((r) => r.data),
+  upsertBudget: (projectId: string, body: { hardLimitUsd?: number; warnAtPercent?: number }) =>
+    apiClient.post(`/projects/${projectId}/configs/budget`, body).then((r) => r.data),
+  getCostSummary: (projectId: string, period?: string) =>
+    apiClient.get<CostSummary>(`/projects/${projectId}/cost-summary`, { params: period ? { period } : {} }).then((r) => r.data),
+};
+
+export const aiGatewayApi = {
+  testConnection: (providerId: string) =>
+    apiClient.post<AiProviderConnectionResult>(`/ai-gateway/providers/${providerId}/test-connection`).then((r) => r.data),
 };

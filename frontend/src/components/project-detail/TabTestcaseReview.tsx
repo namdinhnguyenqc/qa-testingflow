@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckSquare, Square, Minus } from 'lucide-react';
 import { testcasesApi } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -42,6 +43,7 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
   const [filterStatus, setFilterStatus] = useState<TestcaseStatus | 'ALL'>('ALL');
   const [editing, setEditing] = useState<EditState | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: testcaseSet, isLoading } = useQuery({
     queryKey: ['testcase-set', testcaseSetId],
@@ -57,6 +59,15 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
     },
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: TestcaseStatus }) =>
+      Promise.all(ids.map((id) => testcasesApi.updateCase(id, { status }))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['testcase-set', testcaseSetId] });
+      setSelectedIds(new Set());
+    },
+  });
+
   const testCases = testcaseSet?.testCases ?? [];
   const modules = [...new Set(testCases.map((t) => t.module).filter(Boolean))] as string[];
 
@@ -69,6 +80,40 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
     const matchStatus = filterStatus === 'ALL' || t.status === filterStatus;
     return matchSearch && matchModule && matchPriority && matchStatus;
   });
+
+  const filteredIds = filtered.map((t) => t.id);
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const someSelected = filteredIds.some((id) => selectedIds.has(id));
+  const selectedCount = [...selectedIds].filter((id) => filteredIds.includes(id)).length;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function bulkApply(status: TestcaseStatus) {
+    const ids = [...selectedIds].filter((id) => filteredIds.includes(id));
+    bulkMutation.mutate({ ids, status });
+  }
 
   return (
     <div className="p-6 flex flex-col gap-4">
@@ -120,6 +165,46 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
         </select>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-2">
+          <span className="text-xs font-medium text-primary">{selectedCount} đã chọn</span>
+          <div className="flex gap-2 ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bulkApply('APPROVED')}
+              loading={bulkMutation.isPending}
+            >
+              Duyệt
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bulkApply('REJECTED')}
+              loading={bulkMutation.isPending}
+            >
+              Từ chối
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bulkApply('NEEDS_REVIEW')}
+              loading={bulkMutation.isPending}
+            >
+              Cần xem lại
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Bỏ chọn
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" /></div>
@@ -136,6 +221,17 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0">
               <tr>
+                <th className="px-3 py-2 w-8">
+                  <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
+                    {allSelected ? (
+                      <CheckSquare size={14} className="text-primary" />
+                    ) : someSelected ? (
+                      <Minus size={14} className="text-primary" />
+                    ) : (
+                      <Square size={14} />
+                    )}
+                  </button>
+                </th>
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-28">ID</th>
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tiêu đề</th>
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-24">Module</th>
@@ -149,6 +245,7 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
               {filtered.map((tc) => {
                 const isEditing = editing?.id === tc.id;
                 const isExpanded = expandedId === tc.id;
+                const isSelected = selectedIds.has(tc.id);
                 return (
                   <>
                     <tr
@@ -156,9 +253,15 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                       className={cn(
                         'hover:bg-muted/20',
                         isEditing && 'bg-primary/5',
-                        isExpanded && 'bg-muted/10',
+                        isSelected && 'bg-blue-50/50',
+                        isExpanded && !isSelected && 'bg-muted/10',
                       )}
                     >
+                      <td className="px-3 py-2">
+                        <button onClick={() => toggleOne(tc.id)} className="text-muted-foreground hover:text-foreground">
+                          {isSelected ? <CheckSquare size={13} className="text-primary" /> : <Square size={13} />}
+                        </button>
+                      </td>
                       <td className="px-3 py-2 text-xs font-mono text-muted-foreground">{tc.externalId}</td>
                       <td className="px-3 py-2 text-xs">
                         {isEditing ? (
@@ -184,12 +287,16 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                         {isEditing ? (
                           <select
                             value={editing.status}
-                            onChange={(e) => setEditing((prev) => prev && { ...prev, status: e.target.value as TestcaseStatus })}
+                            onChange={(e) =>
+                              setEditing((prev) => prev && { ...prev, status: e.target.value as TestcaseStatus })
+                            }
                             className="h-7 rounded border border-input px-1 text-xs focus:outline-none"
                           >
-                            {(['DRAFT', 'READY', 'APPROVED', 'REJECTED', 'NEEDS_REVIEW'] as TestcaseStatus[]).map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
+                            {(['DRAFT', 'READY', 'APPROVED', 'REJECTED', 'NEEDS_REVIEW'] as TestcaseStatus[]).map(
+                              (s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ),
+                            )}
                           </select>
                         ) : (
                           <Badge variant={STATUS_VARIANT[tc.status]}>{tc.status}</Badge>
@@ -201,14 +308,29 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                       <td className="px-3 py-2">
                         {isEditing ? (
                           <div className="flex gap-1">
-                            <Button size="sm" loading={updateMutation.isPending} onClick={() => updateMutation.mutate(editing)}>Lưu</Button>
-                            <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Hủy</Button>
+                            <Button
+                              size="sm"
+                              loading={updateMutation.isPending}
+                              onClick={() => updateMutation.mutate(editing)}
+                            >
+                              Lưu
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditing(null)}>
+                              Hủy
+                            </Button>
                           </div>
                         ) : (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setEditing({ id: tc.id, title: tc.title, expectedResult: tc.expectedResult, status: tc.status })}
+                            onClick={() =>
+                              setEditing({
+                                id: tc.id,
+                                title: tc.title,
+                                expectedResult: tc.expectedResult,
+                                status: tc.status,
+                              })
+                            }
                           >
                             Sửa
                           </Button>
@@ -217,7 +339,7 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                     </tr>
                     {isExpanded && !isEditing && (
                       <tr key={`${tc.id}-expand`} className="bg-muted/10">
-                        <td colSpan={7} className="px-6 py-3">
+                        <td colSpan={8} className="px-6 py-3">
                           <div className="flex gap-6 text-xs">
                             <div className="flex-1">
                               <p className="font-medium text-muted-foreground mb-1">Điều kiện tiên quyết</p>
@@ -231,16 +353,7 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                             </div>
                             <div className="flex-1">
                               <p className="font-medium text-muted-foreground mb-1">Kết quả mong đợi</p>
-                              {isEditing ? (
-                                <textarea
-                                  rows={2}
-                                  value={editing.expectedResult}
-                                  onChange={(e) => setEditing((prev) => prev && { ...prev, expectedResult: e.target.value })}
-                                  className="w-full rounded border border-input px-2 py-1 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-                                />
-                              ) : (
-                                <p>{tc.expectedResult}</p>
-                              )}
+                              <p>{tc.expectedResult}</p>
                             </div>
                           </div>
                         </td>

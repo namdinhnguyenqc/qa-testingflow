@@ -11,35 +11,44 @@ import { JobStatusBadge } from '@/components/ui/JobStatusBadge';
 
 interface Props {
   requirementVersionId: string | null;
-  onApproved?: () => void;
+  onApproved?: (rvId: string) => void;
 }
 
 export function TabFinalRequirement({ requirementVersionId, onApproved }: Props) {
   const queryClient = useQueryClient();
   const [rewriteRunId, setRewriteRunId] = useState<string | null>(null);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(requirementVersionId);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
 
+  const currentVersionId = activeVersionId ?? requirementVersionId;
   const jobStatus = useJobStatus(rewriteRunId);
 
   const { data: version } = useQuery({
-    queryKey: ['requirement-version', requirementVersionId],
-    queryFn: () => requirementsApi.getVersion(requirementVersionId!),
-    enabled: !!requirementVersionId,
+    queryKey: ['requirement-version', currentVersionId],
+    queryFn: () => requirementsApi.getVersion(currentVersionId!),
+    enabled: !!currentVersionId,
   });
 
   const rewriteMutation = useMutation({
-    mutationFn: () => requirementsApi.rewrite(requirementVersionId!),
-    onSuccess: (run) => setRewriteRunId(run.id),
+    mutationFn: () => requirementsApi.rewrite(currentVersionId!),
+    onSuccess: (run) => {
+      setRewriteRunId(run.id);
+      const newRvId = (run.outputJson as { requirementVersionId?: string })?.requirementVersionId;
+      if (newRvId) {
+        setActiveVersionId(newRvId);
+        queryClient.invalidateQueries({ queryKey: ['requirement-versions-bootstrap'] });
+      }
+    },
   });
 
   const approveMutation = useMutation({
     mutationFn: (opts?: Partial<ApproveRequest>) =>
-      requirementsApi.approve(requirementVersionId!, opts),
+      requirementsApi.approve(currentVersionId!, opts),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement-version', requirementVersionId] });
+      queryClient.invalidateQueries({ queryKey: ['requirement-version', currentVersionId] });
       setShowOverrideConfirm(false);
-      onApproved?.();
+      onApproved?.(currentVersionId!);
     },
   });
 
@@ -61,11 +70,7 @@ export function TabFinalRequirement({ requirementVersionId, onApproved }: Props)
           {version && !isLocked && (
             <Button
               size="sm"
-              onClick={() => {
-                const hasOpenCritical = true; // in real: check from gap data
-                if (hasOpenCritical) setShowOverrideConfirm(true);
-                else approveMutation.mutate({});
-              }}
+              onClick={() => setShowOverrideConfirm(true)}
               loading={approveMutation.isPending}
             >
               Duyệt yêu cầu
@@ -81,23 +86,28 @@ export function TabFinalRequirement({ requirementVersionId, onApproved }: Props)
         </div>
       )}
 
-      {/* Override confirmation */}
+      {/* Override/approve dialog */}
       {showOverrideConfirm && (
         <div className="rounded-md border border-yellow-300 bg-yellow-50 p-4 flex flex-col gap-3">
-          <p className="text-sm font-medium text-yellow-800">⚠️ Cảnh báo: Còn gap chưa xử lý</p>
-          <p className="text-xs text-yellow-700">Duyệt lúc này sẽ gắn nhãn "Draft with unresolved risk". Nhập lý do để tiếp tục.</p>
+          <p className="text-sm font-medium text-yellow-800">Xác nhận duyệt yêu cầu</p>
+          <p className="text-xs text-yellow-700">
+            Nếu còn gap chưa giải quyết, duyệt sẽ gắn nhãn "Draft with unresolved risk". Để override, nhập lý do bên dưới.
+          </p>
           <textarea
             rows={2}
-            placeholder="Lý do override..."
+            placeholder="Lý do override (tùy chọn)..."
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
             className="rounded border border-yellow-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-500 resize-none"
           />
           <div className="flex gap-2">
             <Button size="sm" onClick={() => approveMutation.mutate({ override: true, reason: overrideReason })} loading={approveMutation.isPending}>
-              Xác nhận duyệt
+              Duyệt
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowOverrideConfirm(false)}>Hủy</Button>
+            <Button size="sm" variant="outline" onClick={() => { approveMutation.mutate({}); }} loading={approveMutation.isPending}>
+              Duyệt (không override)
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowOverrideConfirm(false)}>Hủy</Button>
           </div>
         </div>
       )}
@@ -132,7 +142,7 @@ export function TabFinalRequirement({ requirementVersionId, onApproved }: Props)
         </div>
       ) : (
         <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          Chưa có nội dung. Nhấn "Viết lại" để tạo yêu cầu cuối.
+          {currentVersionId ? 'Nhấn "Viết lại" để tạo yêu cầu cuối.' : 'Chưa có yêu cầu. Phân tích requirement trước.'}
         </div>
       )}
     </div>

@@ -21,9 +21,10 @@ interface Props {
   projectId: string;
   requirementVersionId: string | null;
   artifactId?: string;
+  onAnalyzed?: (rvId: string) => void;
 }
 
-export function TabAnalyze({ projectId, requirementVersionId, artifactId }: Props) {
+export function TabAnalyze({ projectId, requirementVersionId, artifactId, onAnalyzed }: Props) {
   const queryClient = useQueryClient();
   const [analyzeRunId, setAnalyzeRunId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -42,6 +43,8 @@ export function TabAnalyze({ projectId, requirementVersionId, artifactId }: Prop
       requirementsApi.analyze(projectId, { artifactId: artifactId ?? '' }),
     onSuccess: (run) => {
       setAnalyzeRunId(run.id);
+      const rvId = (run.outputJson as { requirementVersionId?: string })?.requirementVersionId;
+      if (rvId) onAnalyzed?.(rvId);
     },
   });
 
