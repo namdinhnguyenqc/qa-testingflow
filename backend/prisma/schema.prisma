@@ -429,6 +429,23 @@ model AuditLog {
   @@schema("aiqa_dev")
 }
 
+model PromptVersion {
+  id        String   @id @default(uuid())
+  name      String
+  versionNo Int
+  isActive  Boolean  @default(false)
+  content   String
+  variables Json?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, versionNo])
+  @@index([name])
+  @@map("prompt_versions")
+  @@schema("aiqa_dev")
+}
+
 model ExportArtifact {
   id            String       @id @default(uuid())
   projectId     String

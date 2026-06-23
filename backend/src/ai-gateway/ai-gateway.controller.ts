@@ -1,8 +1,12 @@
-import { Controller, Param, Post } from '@nestjs/common';
+import { Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../auth/roles.decorator';
 import { AiGatewayService } from './ai-gateway.service';
 
 @ApiTags('ai-gateway')
+@UseGuards(AuthGuard)
+@Roles('admin')
 @Controller('configs/ai-providers')
 export class AiGatewayController {
   constructor(private readonly aiGatewayService: AiGatewayService) {}

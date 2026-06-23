@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SecretsService } from '../secrets/secrets.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { AiGatewayService } from './ai-gateway.service';
 import { AI_PROVIDER_ADAPTERS } from './adapters/ai-provider.adapter';
 
@@ -13,6 +14,11 @@ describe('AiGatewayService', () => {
   };
   const secretsService = {
     mask: jest.fn((value: string) => `masked:${value}`),
+  };
+  const prismaService = {
+    aiCallLog: {
+      create: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -28,6 +34,10 @@ describe('AiGatewayService', () => {
         {
           provide: SecretsService,
           useValue: secretsService,
+        },
+        {
+          provide: PrismaService,
+          useValue: prismaService,
         },
       ],
     }).compile();

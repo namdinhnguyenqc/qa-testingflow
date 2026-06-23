@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../secrets/secrets.service';
-import { AIProviderAdapter, TestConnectionResult } from './ai-provider.adapter';
+import {
+  AIProviderAdapter,
+  CallSkillParams,
+  CallSkillResult,
+  TestConnectionResult,
+} from './ai-provider.adapter';
 
 interface OpenAIModelListResponse {
   data?: Array<{ id?: string }>;
@@ -72,6 +77,62 @@ export class OpenAIAdapter implements AIProviderAdapter {
         throw new ServiceUnavailableException('OpenAI API request timed out');
       }
 
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async callSkill(params: CallSkillParams): Promise<CallSkillResult> {
+    const apiKey = this.secretsService.resolve(this.secretRef);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+
+    interface OpenAIChatResponse {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+      error?: { message?: string };
+    }
+
+    try {
+      const response = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: params.model,
+            messages: [{ role: 'user', content: params.prompt }],
+            max_tokens: params.maxTokens ?? 4096,
+            temperature: params.temperature ?? 0.2,
+            response_format: { type: 'json_object' },
+          }),
+        },
+      );
+
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as OpenAIChatResponse;
+
+      if (!response.ok) {
+        throw new ServiceUnavailableException(
+          body.error?.message ?? `OpenAI call failed: ${response.status}`,
+        );
+      }
+
+      return {
+        content: body.choices?.[0]?.message?.content ?? '{}',
+        inputTokens: body.usage?.prompt_tokens ?? 0,
+        outputTokens: body.usage?.completion_tokens ?? 0,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ServiceUnavailableException('OpenAI API request timed out');
+      }
       throw error;
     } finally {
       clearTimeout(timeout);
