@@ -22,6 +22,9 @@ const numberKeys = [
 
 export function validateEnv(config: Env) {
   const missing = requiredKeys.filter((key) => !config[key]);
+  if (config.NODE_ENV === 'production' && !config.AUTH_SECRET) {
+    missing.push('AUTH_SECRET');
+  }
 
   if (missing.length > 0) {
     throw new Error(
@@ -45,6 +48,8 @@ export function validateEnv(config: Env) {
     PORT: Number(config.PORT ?? 3000),
     REDIS_PORT: Number(config.REDIS_PORT),
     S3_FORCE_PATH_STYLE: config.S3_FORCE_PATH_STYLE ?? 'true',
+    FRONTEND_ORIGIN:
+      config.FRONTEND_ORIGIN ?? 'http://localhost:3000,http://localhost:3001',
     OPENAI_DEFAULT_MODEL: config.OPENAI_DEFAULT_MODEL ?? 'gpt-4.1-mini',
     DEFAULT_LANGUAGE: config.DEFAULT_LANGUAGE ?? 'vi',
     MAX_FILE_SIZE_DOC_MB: Number(config.MAX_FILE_SIZE_DOC_MB ?? 30),

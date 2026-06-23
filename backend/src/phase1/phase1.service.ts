@@ -3,9 +3,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '../../node_modules/.prisma/client';
+import { Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SkillRuntimeService } from '../skill-runtime/skill-runtime.service';
 import {
   AnalyzeRequirementDto,
   ApproveDto,
@@ -15,9 +18,15 @@ import {
   UpdateTestCaseDto,
 } from './dto';
 
+const DEFAULT_GATE = { minQualityScore: 70, blockIfOpenGaps: true };
+
 @Injectable()
 export class Phase1Service {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly skillRuntime: SkillRuntimeService,
+  ) {}
 
   createArtifact(projectId: string, dto: CreateArtifactDto) {
     return this.prisma.artifact.create({
@@ -81,6 +90,29 @@ export class Phase1Service {
       );
     }
 
+    const language = dto.language ?? 'vi';
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'requirement_reader',
+      projectId,
+      defaultPrompt: `You are a QA analyst. Parse the requirement text into structured items. Language: {{language}}. Source:\n{{sourceText}}`,
+      variables: {
+        language,
+        sourceText:
+          artifact.sourceText ?? artifact.parsedContent ?? 'No content',
+      },
+      fallback: () => ({
+        contentJson: this.requirementJson(language),
+        contentMarkdown: this.requirementMarkdown(),
+        items: this.requirementItems(''),
+      }),
+    });
+
+    const aiOutput = skillResult.output as {
+      contentJson?: unknown;
+      contentMarkdown?: string;
+      items?: unknown[];
+    };
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const versionNo =
@@ -93,33 +125,39 @@ export class Phase1Service {
             status: 'ANALYZED',
             qualityScore: 84,
             qualityJson: this.qualityJson(),
-            contentJson: this.requirementJson(dto.language ?? 'vi'),
-            contentMarkdown: this.requirementMarkdown(),
+            contentJson: (aiOutput.contentJson ??
+              this.requirementJson(language)) as Prisma.InputJsonValue,
+            contentMarkdown:
+              aiOutput.contentMarkdown ?? this.requirementMarkdown(),
           },
         });
 
-        await tx.requirementItem.createMany({
-          data: this.requirementItems(requirementVersion.id),
-        });
+        const items = this.normalizeRequirementItems(
+          aiOutput.items,
+          requirementVersion.id,
+        );
+        await tx.requirementItem.createMany({ data: items });
 
-        const output = { requirementVersionId: requirementVersion.id };
-        await this.createAiCallLog(
-          tx,
-          projectId,
-          'requirement_reader',
-          'SUCCEEDED',
-        );
-        return this.createWorkflowRun(
-          tx,
-          projectId,
-          'requirement_analysis',
-          output,
-        );
+        return this.createWorkflowRun(tx, projectId, 'requirement_analysis', {
+          requirementVersionId: requirementVersion.id,
+          aiSource: skillResult.source,
+          provider: skillResult.provider,
+          model: skillResult.model,
+          promptVersion: skillResult.promptVersion,
+        });
       });
     } catch (error) {
       this.throwConflictOnUniqueRace(error, 'Requirement version');
       throw error;
     }
+  }
+
+  listRequirementVersions(projectId: string) {
+    return this.prisma.requirementVersion.findMany({
+      where: { projectId },
+      orderBy: { versionNo: 'desc' },
+      include: { _count: { select: { items: true, gaps: true } } },
+    });
   }
 
   async getRequirementVersion(id: string) {
@@ -162,26 +200,37 @@ export class Phase1Service {
   }
   async queueQuality(id: string) {
     const version = await this.getRequirementVersion(id);
+
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'requirement_quality_checker',
+      projectId: version.projectId,
+      defaultPrompt: `Score the requirement quality across 8 dimensions (0-100). Return JSON {score, breakdown, recommendations}. Requirement:\n{{content}}`,
+      variables: { content: JSON.stringify(version.contentJson) },
+      fallback: () => this.qualityJson(),
+    });
+
+    const quality = skillResult.output as {
+      score?: number;
+      breakdown?: unknown;
+      recommendations?: unknown;
+    };
+
     return this.prisma.$transaction(async (tx) => {
       await tx.requirementVersion.update({
         where: { id },
         data: {
-          qualityScore: 84,
-          qualityJson: this.qualityJson(),
+          qualityScore: typeof quality.score === 'number' ? quality.score : 84,
+          qualityJson: quality as Prisma.InputJsonValue,
         },
       });
-      await this.createAiCallLog(
-        tx,
-        version.projectId,
-        'requirement_quality_checker',
-        'SUCCEEDED',
-      );
       return this.createWorkflowRun(
         tx,
         version.projectId,
         'requirement_quality',
         {
           requirementVersionId: id,
+          aiSource: skillResult.source,
+          promptVersion: skillResult.promptVersion,
         },
       );
     });
@@ -194,8 +243,26 @@ export class Phase1Service {
       orderBy: { createdAt: 'asc' },
     });
 
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'gap_detector',
+      projectId: version.projectId,
+      defaultPrompt: `Identify gaps in the requirement. Return JSON {gaps: [{externalId, category, severity, confidence, evidence, description}]}. Requirement:\n{{content}}`,
+      variables: { content: JSON.stringify(version.contentJson) },
+      fallback: () => ({
+        gaps: this.gapItems(version.projectId, id, items[0]?.id),
+      }),
+    });
+
+    const aiGaps = (skillResult.output as { gaps?: unknown[] }).gaps ?? [];
+    const gapsToWrite = this.normalizeGapItems(
+      aiGaps,
+      version.projectId,
+      id,
+      items[0]?.id,
+    );
+
     return this.prisma.$transaction(async (tx) => {
-      for (const gap of this.gapItems(version.projectId, id, items[0]?.id)) {
+      for (const gap of gapsToWrite) {
         await tx.gapItem.upsert({
           where: {
             requirementVersionId_externalId: {
@@ -208,14 +275,10 @@ export class Phase1Service {
         });
       }
 
-      await this.createAiCallLog(
-        tx,
-        version.projectId,
-        'gap_detector',
-        'SUCCEEDED',
-      );
       return this.createWorkflowRun(tx, version.projectId, 'gap_detection', {
         requirementVersionId: id,
+        aiSource: skillResult.source,
+        promptVersion: skillResult.promptVersion,
       });
     });
   }
@@ -247,6 +310,29 @@ export class Phase1Service {
     const items = await this.prisma.requirementItem.findMany({
       where: { requirementVersionId: id },
     });
+    const gaps = await this.prisma.gapItem.findMany({
+      where: { requirementVersionId: id },
+    });
+
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'requirement_rewriter',
+      projectId: version.projectId,
+      defaultPrompt: `Rewrite the requirement, addressing all resolved gaps. Return JSON {contentJson, contentMarkdown}. Original:\n{{content}}\nGaps:\n{{gaps}}`,
+      variables: {
+        content: JSON.stringify(version.contentJson),
+        gaps: JSON.stringify(gaps),
+      },
+      fallback: () => ({
+        contentJson: version.contentJson,
+        contentMarkdown: `${version.contentMarkdown ?? this.requirementMarkdown()}\n\nRisk note: unresolved gaps require QA approval override.`,
+      }),
+    });
+
+    const rewriteOut = skillResult.output as {
+      contentJson?: unknown;
+      contentMarkdown?: string;
+    };
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const nextVersionNo =
@@ -261,8 +347,11 @@ export class Phase1Service {
             status: 'REWRITTEN',
             qualityScore: 90,
             qualityJson: this.qualityJson(90),
-            contentJson: version.contentJson as Prisma.InputJsonValue,
-            contentMarkdown: `${version.contentMarkdown ?? this.requirementMarkdown()}\n\nRisk note: unresolved gaps require QA approval override.`,
+            contentJson: (rewriteOut.contentJson ??
+              version.contentJson) as Prisma.InputJsonValue,
+            contentMarkdown:
+              rewriteOut.contentMarkdown ??
+              `${version.contentMarkdown ?? this.requirementMarkdown()}\n\nRewritten v${nextVersionNo}.`,
           },
         });
         await tx.requirementItem.createMany({
@@ -278,18 +367,14 @@ export class Phase1Service {
             metadata: item.metadata as Prisma.InputJsonValue,
           })),
         });
-        await this.createAiCallLog(
-          tx,
-          version.projectId,
-          'requirement_rewriter',
-          'SUCCEEDED',
-        );
         return this.createWorkflowRun(
           tx,
           version.projectId,
           'requirement_rewrite',
           {
             requirementVersionId: rewritten.id,
+            aiSource: skillResult.source,
+            promptVersion: skillResult.promptVersion,
           },
         );
       });
@@ -300,15 +385,31 @@ export class Phase1Service {
   }
 
   async approveRequirement(id: string, dto: ApproveDto) {
-    await this.getRequirementVersion(id);
+    const version = await this.getRequirementVersion(id);
+
+    const gate = await this.resolveGateConfig(version.projectId);
+    const qualityScore = version.qualityScore ?? 0;
+    const qualityPassed = qualityScore >= gate.minQualityScore;
     const openGaps = await this.prisma.gapItem.count({
       where: { requirementVersionId: id, status: 'OPEN' },
     });
-    if (openGaps > 0 && !dto.override) {
-      throw new ConflictException(
-        'Requirement version has unresolved gaps. Approve with override to continue.',
+    const gapsPassed = !gate.blockIfOpenGaps || openGaps === 0;
+
+    if ((!qualityPassed || !gapsPassed) && !dto.override) {
+      const reasons: string[] = [];
+      if (!qualityPassed)
+        reasons.push(
+          `Quality score ${qualityScore} < minimum ${gate.minQualityScore}`,
+        );
+      if (!gapsPassed) reasons.push(`${openGaps} unresolved gap(s) remain`);
+      throw new UnprocessableEntityException(
+        `Approval gate failed: ${reasons.join('; ')}. Use override=true to continue.`,
       );
     }
+
+    const passed = qualityPassed && gapsPassed;
+    const label = passed ? 'Approved' : 'Draft with unresolved risk';
+
     const approved = await this.prisma.requirementVersion.update({
       where: { id },
       data: {
@@ -317,18 +418,44 @@ export class Phase1Service {
         lockedAt: new Date(),
       },
     });
+
+    await this.audit.log({
+      projectId: version.projectId,
+      action: 'requirement.approved',
+      entityType: 'RequirementVersion',
+      entityId: id,
+      metadata: { gate: { passed, override: Boolean(dto.override), label } },
+    });
+
     return {
       ...approved,
-      gate: {
-        passed: openGaps === 0,
-        override: Boolean(dto.override),
-        label: openGaps > 0 ? 'Draft with unresolved risk' : 'Approved',
-      },
+      gate: { passed, override: Boolean(dto.override), label },
     };
   }
 
   async generateTestcases(id: string, dto: GenerateTestcasesDto) {
     const version = await this.getRequirementVersion(id);
+
+    if (version.status !== 'APPROVED') {
+      throw new UnprocessableEntityException(
+        `Requirement version must be APPROVED before generating testcases. Current status: ${version.status}`,
+      );
+    }
+
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'testcase_generator',
+      projectId: version.projectId,
+      defaultPrompt: `Generate test cases for the approved requirement. Config: {{config}}. Return JSON {testCases:[{externalId, module, feature, title, preconditions, steps, expectedResult, priority, type, status, requirementRefs}]}. Requirement:\n{{content}}`,
+      variables: {
+        content: JSON.stringify(version.contentJson),
+        config: JSON.stringify(dto),
+      },
+      fallback: () => ({ testCases: this.testCases('') }),
+    });
+
+    const aiCases =
+      (skillResult.output as { testCases?: unknown[] }).testCases ?? [];
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const setVersionNo =
@@ -342,25 +469,35 @@ export class Phase1Service {
             versionNo: setVersionNo,
             status: 'GENERATED',
             generationConfig: dto as Prisma.InputJsonValue,
+            ...(skillResult.promptVersion
+              ? {}
+              : {}),
           },
         });
         await tx.testCase.createMany({
-          data: this.testCases(testcaseSet.id),
+          data: this.normalizeTestCases(aiCases, testcaseSet.id),
         });
-        await this.createAiCallLog(
-          tx,
-          version.projectId,
-          'testcase_generator',
-          'SUCCEEDED',
-        );
-        return this.createWorkflowRun(
+        const run = await this.createWorkflowRun(
           tx,
           version.projectId,
           'testcase_generation',
           {
             testcaseSetId: testcaseSet.id,
+            aiSource: skillResult.source,
+            promptVersion: skillResult.promptVersion,
           },
         );
+        await this.audit.log({
+          projectId: version.projectId,
+          action: 'testcase_set.generated',
+          entityType: 'TestcaseSet',
+          entityId: testcaseSet.id,
+          metadata: {
+            requirementVersionId: id,
+            versionNo: testcaseSet.versionNo,
+          },
+        });
+        return run;
       });
     } catch (error) {
       this.throwConflictOnUniqueRace(error, 'Testcase set');
@@ -402,8 +539,44 @@ export class Phase1Service {
       where: { requirementVersionId: set.requirementVersionId },
       orderBy: { createdAt: 'asc' },
     });
+
+    const skillResult = await this.skillRuntime.run({
+      skillName: 'coverage_checker',
+      projectId: set.projectId,
+      defaultPrompt: `Map requirements to test cases. Return JSON {coverage:[{requirementExternalId, status (COVERED|PARTIAL|MISSING|NOT_TESTABLE), coveragePercent, testcaseRefs}]}. Requirements:\n{{items}}\nTest cases:\n{{cases}}`,
+      variables: {
+        items: JSON.stringify(items.map((i) => i.externalId)),
+        cases: JSON.stringify(set.testCases.map((c) => c.externalId)),
+      },
+      fallback: () => ({
+        coverage: items.map((item, index) => ({
+          requirementExternalId: item.externalId,
+          status: index < 2 ? 'COVERED' : 'PARTIAL',
+          coveragePercent: index < 2 ? 100 : 50,
+          testcaseRefs: ['TC_AUTH_LOGIN_001'],
+        })),
+      }),
+    });
+
+    const aiCoverage =
+      (skillResult.output as { coverage?: unknown[] }).coverage ?? [];
+
     return this.prisma.$transaction(async (tx) => {
-      for (const [index, item] of items.entries()) {
+      for (const item of items) {
+        const match = (aiCoverage as Array<Record<string, unknown>>).find(
+          (c) => c.requirementExternalId === item.externalId,
+        );
+        const status = this.toCoverageStatus(match?.status as string | undefined);
+        const coveragePercent =
+          typeof match?.coveragePercent === 'number'
+            ? match.coveragePercent
+            : status === 'COVERED'
+              ? 100
+              : 50;
+        const refs = Array.isArray(match?.testcaseRefs)
+          ? (match.testcaseRefs as string[])
+          : ['TC_AUTH_LOGIN_001'];
+
         await tx.coverageItem.upsert({
           where: {
             requirementItemId_testcaseSetId: {
@@ -412,28 +585,25 @@ export class Phase1Service {
             },
           },
           update: {
-            status: index < 2 ? 'COVERED' : 'PARTIAL',
-            coveragePercent: index < 2 ? 100 : 50,
-            testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
+            status,
+            coveragePercent,
+            testcaseRefs: refs as Prisma.InputJsonValue,
           },
           create: {
             requirementVersionId: set.requirementVersionId,
             requirementItemId: item.id,
             testcaseSetId: id,
-            status: index < 2 ? 'COVERED' : 'PARTIAL',
-            coveragePercent: index < 2 ? 100 : 50,
-            testcaseRefs: ['TC_AUTH_LOGIN_001'] as Prisma.InputJsonValue,
+            status,
+            coveragePercent,
+            testcaseRefs: refs as Prisma.InputJsonValue,
           },
         });
       }
-      await this.createAiCallLog(
-        tx,
-        set.projectId,
-        'coverage_checker',
-        'SUCCEEDED',
-      );
+
       return this.createWorkflowRun(tx, set.projectId, 'coverage_check', {
         testcaseSetId: id,
+        aiSource: skillResult.source,
+        promptVersion: skillResult.promptVersion,
       });
     });
   }
@@ -468,6 +638,13 @@ export class Phase1Service {
           storageKey: `exports/${set.id}/testcases-${set.versionNo}.xlsx`,
           sizeBytes: 8192,
         },
+      });
+      await this.audit.log({
+        projectId: set.projectId,
+        action: 'export.created',
+        entityType: 'ExportArtifact',
+        entityId: exportArtifact.id,
+        metadata: { testcaseSetId: id, format: 'xlsx' },
       });
       return this.createWorkflowRun(tx, set.projectId, 'excel_export', {
         exportArtifactId: exportArtifact.id,
@@ -547,6 +724,24 @@ export class Phase1Service {
     });
   }
 
+  private async resolveGateConfig(projectId: string) {
+    const config = await this.prisma.configVersion.findFirst({
+      where: { projectId, name: 'quality_gate', status: 'ACTIVE' },
+    });
+    if (!config) return DEFAULT_GATE;
+    const content = config.contentJson as Record<string, unknown>;
+    return {
+      minQualityScore:
+        typeof content.minQualityScore === 'number'
+          ? content.minQualityScore
+          : DEFAULT_GATE.minQualityScore,
+      blockIfOpenGaps:
+        typeof content.blockIfOpenGaps === 'boolean'
+          ? content.blockIfOpenGaps
+          : DEFAULT_GATE.blockIfOpenGaps,
+    };
+  }
+
   private createWorkflowRun(
     client: PrismaService | Prisma.TransactionClient,
     projectId: string,
@@ -567,27 +762,121 @@ export class Phase1Service {
     });
   }
 
-  private createAiCallLog(
-    client: PrismaService | Prisma.TransactionClient,
-    projectId: string,
-    skillName: string,
-    status: string,
+  private normalizeRequirementItems(
+    raw: unknown[] | undefined,
+    requirementVersionId: string,
   ) {
-    return client.aiCallLog.create({
-      data: {
-        projectId,
-        traceId: `trace_${skillName}_${Date.now()}`,
-        provider: 'openai',
-        model: 'gpt-4.1-mini',
-        skillName,
-        skillVersion: 'v1',
-        promptVersion: 'v1',
-        inputTokens: 320,
-        outputTokens: 680,
-        totalTokens: 1000,
-        status,
-      },
+    if (!raw || raw.length === 0) {
+      return this.requirementItems(requirementVersionId);
+    }
+    return raw.map((item, index) => {
+      const v = item as Record<string, unknown>;
+      return {
+        requirementVersionId,
+        externalId: this.asString(
+          v.externalId ?? v.id,
+          `REQ_AI_${String(index + 1).padStart(3, '0')}`,
+        ),
+        module: this.asString(v.module, 'General'),
+        feature: this.asString(v.feature, 'Requirement'),
+        type: 'FUNCTIONAL' as const,
+        priority: this.toPriority(v.priority),
+        testable: Boolean(v.testable ?? true),
+        content: this.asString(v.content ?? v.description, ''),
+        metadata: (v.metadata ?? {}) as Prisma.InputJsonValue,
+      };
     });
+  }
+
+  private normalizeGapItems(
+    raw: unknown[],
+    projectId: string,
+    requirementVersionId: string,
+    requirementItemId: string | undefined,
+  ) {
+    if (raw.length === 0) {
+      return this.gapItems(projectId, requirementVersionId, requirementItemId);
+    }
+    return raw.map((g, index) => {
+      const v = g as Record<string, unknown>;
+      return {
+        projectId,
+        requirementVersionId,
+        requirementItemId: requirementItemId ?? null,
+        externalId: this.asString(
+          v.externalId ?? v.id,
+          `GAP_AI_${String(index + 1).padStart(3, '0')}`,
+        ),
+        category: this.asString(v.category, 'general'),
+        severity: this.toSeverity(v.severity),
+        status: 'OPEN' as const,
+        confidence: typeof v.confidence === 'number' ? v.confidence : 0.7,
+        evidence: this.asString(v.evidence, 'AI-detected'),
+        description: this.asString(v.description, this.asString(v.evidence, '')),
+      };
+    });
+  }
+
+  private normalizeTestCases(raw: unknown[], testcaseSetId: string) {
+    if (raw.length === 0) return this.testCases(testcaseSetId);
+    return raw.map((c, index) => {
+      const v = c as Record<string, unknown>;
+      return {
+        testcaseSetId,
+        externalId: this.asString(
+          v.externalId ?? v.id,
+          `TC_AI_${String(index + 1).padStart(3, '0')}`,
+        ),
+        module: this.asString(v.module, 'General'),
+        feature: this.asString(v.feature, 'Generated'),
+        title: this.asString(v.title, `Test case ${index + 1}`),
+        preconditions: this.asString(v.preconditions, ''),
+        steps: (Array.isArray(v.steps)
+          ? v.steps
+          : [
+              {
+                stepNo: 1,
+                action: this.asString(v.action, 'Execute'),
+                expected: this.asString(v.expectedResult ?? v.expected, ''),
+              },
+            ]) as Prisma.InputJsonValue,
+        expectedResult: this.asString(v.expectedResult, ''),
+        priority: this.toPriority(v.priority),
+        type: this.asString(v.type, 'positive'),
+        status: 'READY' as const,
+        requirementRefs: (Array.isArray(v.requirementRefs)
+          ? v.requirementRefs
+          : []) as Prisma.InputJsonValue,
+      };
+    });
+  }
+
+  private toPriority(v: unknown): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' {
+    const s = typeof v === 'string' ? v.toUpperCase() : '';
+    if (s === 'CRITICAL' || s === 'HIGH' || s === 'MEDIUM' || s === 'LOW')
+      return s;
+    return 'MEDIUM';
+  }
+
+  private toSeverity(v: unknown): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' {
+    const s = typeof v === 'string' ? v.toUpperCase() : '';
+    if (s === 'CRITICAL' || s === 'HIGH' || s === 'MEDIUM' || s === 'LOW')
+      return s;
+    return 'MEDIUM';
+  }
+
+  private toCoverageStatus(
+    v: string | undefined,
+  ): 'COVERED' | 'PARTIAL' | 'MISSING' | 'NOT_TESTABLE' {
+    const s = (v ?? '').toUpperCase();
+    if (
+      s === 'COVERED' ||
+      s === 'PARTIAL' ||
+      s === 'MISSING' ||
+      s === 'NOT_TESTABLE'
+    )
+      return s;
+    return 'PARTIAL';
   }
 
   private asString(value: unknown, fallback: string) {

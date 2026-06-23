@@ -9,6 +9,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { SecretsModule } from './secrets/secrets.module';
 import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { Phase1Module } from './phase1/phase1.module';
+import { Phase2Module } from './phase2/phase2.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { AuthModule } from './auth/auth.module';
     AiGatewayModule,
     ProjectsModule,
     Phase1Module,
+    Phase2Module,
     AuthModule,
   ],
   controllers: [AppController],

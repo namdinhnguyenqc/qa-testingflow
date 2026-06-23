@@ -43,6 +43,11 @@ export class Phase1Controller {
     return this.phase1Service.parseArtifact(id);
   }
 
+  @Get('projects/:projectId/requirement-versions')
+  listRequirementVersions(@Param('projectId') projectId: string) {
+    return this.phase1Service.listRequirementVersions(projectId);
+  }
+
   @Post('projects/:projectId/requirements/analyze')
   @HttpCode(HttpStatus.ACCEPTED)
   analyzeRequirement(

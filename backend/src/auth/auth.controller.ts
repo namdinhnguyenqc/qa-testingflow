@@ -8,7 +8,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: { email: string; password: string }) {
     const user = await this.authService.validateUser(body.email, body.password);
-    if (!user) throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+    if (!user) throw new UnauthorizedException('Invalid email or password');
     return this.authService.login(user);
   }
 }
