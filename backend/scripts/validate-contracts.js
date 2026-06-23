@@ -32,6 +32,16 @@ const requiredOpenApiFragments = [
   '/projects/{projectId}/ai-call-logs',
   '/projects/{projectId}/audit-logs',
   '/configs/ai-providers/{id}/test-connection',
+  '/configs/prompt-versions',
+  '/configs/prompt-versions/{id}',
+  '/configs/prompt-versions/{id}/activate',
+  '/projects/{projectId}/configs/gate',
+  '/projects/{projectId}/configs/budget',
+  '/audit-logs',
+  '/projects/{projectId}/cost-summary',
+  '/projects/{projectId}/budget-status',
+  '/skills/figma-reader',
+  '/skills/test-call',
 ];
 
 function validateJsonSchemas() {
@@ -69,7 +79,7 @@ try {
   const schemaFiles = validateJsonSchemas();
   validateOpenApiSkeleton();
   console.log(
-    `Contracts valid: ${schemaFiles.length} JSON schemas compiled and OpenAPI Phase 1 paths are present.`,
+    `Contracts valid: ${schemaFiles.length} JSON schemas compiled and OpenAPI Phase 1/2 paths are present.`,
   );
 } catch (error) {
   console.error(error);

@@ -367,7 +367,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [openai]
+            enum: [openai, anthropic]
       responses:
         "200":
           description: Provider connection status
@@ -379,6 +379,157 @@ paths:
           description: Provider secret is invalid
         "404":
           description: Provider or secret is not configured
+
+  /configs/prompt-versions:
+    post:
+      summary: Create a prompt version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePromptVersionRequest"
+      responses:
+        "201":
+          description: Prompt version created
+    get:
+      summary: List prompt versions
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Prompt versions
+
+  /configs/prompt-versions/{id}:
+    get:
+      summary: Get prompt version
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Prompt version detail
+        "404":
+          description: Prompt version not found
+
+  /configs/prompt-versions/{id}/activate:
+    post:
+      summary: Activate prompt version
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Prompt version activated
+
+  /projects/{projectId}/configs/gate:
+    post:
+      summary: Upsert quality gate config
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdAsProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGateConfigRequest"
+      responses:
+        "201":
+          description: Gate config created or updated
+    get:
+      summary: Get quality gate config
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdAsProjectId"
+      responses:
+        "200":
+          description: Gate config
+
+  /projects/{projectId}/configs/budget:
+    post:
+      summary: Upsert budget config
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdAsProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBudgetConfigRequest"
+      responses:
+        "201":
+          description: Budget config created or updated
+
+  /audit-logs:
+    get:
+      summary: List audit logs
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit logs
+
+  /projects/{projectId}/cost-summary:
+    get:
+      summary: Get AI cost summary
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdAsProjectId"
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: Cost summary
+
+  /projects/{projectId}/budget-status:
+    get:
+      summary: Get budget status
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdAsProjectId"
+      responses:
+        "200":
+          description: Budget status
+
+  /skills/figma-reader:
+    post:
+      summary: Read Figma file metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadFigmaRequest"
+      responses:
+        "200":
+          description: Figma reader result
+
+  /skills/test-call:
+    post:
+      summary: Test skill call with fallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestSkillRequest"
+      responses:
+        "200":
+          description: Skill call result
+        "403":
+          description: Skill test calls disabled
 
 components:
   parameters:
@@ -596,3 +747,64 @@ components:
             type: string
         secretRef:
           type: [string, "null"]
+    CreatePromptVersionRequest:
+      type: object
+      required: [name, content]
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+        variables:
+          type: object
+        notes:
+          type: string
+    UpdateGateConfigRequest:
+      type: object
+      properties:
+        minQualityScore:
+          type: integer
+          minimum: 0
+        blockIfOpenGaps:
+          type: boolean
+    UpdateBudgetConfigRequest:
+      type: object
+      properties:
+        hardLimitUsd:
+          type: integer
+          minimum: 0
+        warnAtPercent:
+          type: integer
+          minimum: 1
+    ReadFigmaRequest:
+      type: object
+      required: [fileKey]
+      properties:
+        fileKey:
+          type: string
+        nodeIds:
+          type: string
+        accessToken:
+          type: string
+    TestSkillRequest:
+      type: object
+      required: [provider, model, prompt]
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic]
+        model:
+          type: string
+        prompt:
+          type: string
+        fallbackProvider:
+          type: string
+          enum: [openai, anthropic]
+        fallbackModel:
+          type: string
+        projectId:
+          type: string
+        skillName:
+          type: string
+        promptVersion:
+          type: string
