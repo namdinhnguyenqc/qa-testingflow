@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { ExcelExporterService } from '../exporter/excel-exporter.service';
+import { ParserService } from '../parser/parser.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SkillRuntimeService } from '../skill-runtime/skill-runtime.service';
+import { StorageService } from '../storage/storage.service';
 import {
   AnalyzeRequirementDto,
   ApproveDto,
@@ -26,6 +29,9 @@ export class Phase1Service {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly skillRuntime: SkillRuntimeService,
+    private readonly parser: ParserService,
+    private readonly exporter: ExcelExporterService,
+    private readonly storage: StorageService,
   ) {}
 
   createArtifact(projectId: string, dto: CreateArtifactDto) {
@@ -50,31 +56,113 @@ export class Phase1Service {
     });
   }
 
+  async uploadArtifact(
+    projectId: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
+  ) {
+    const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+    const allowedMimes = new Set([
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+    ]);
+    if (!allowedMimes.has(file.mimetype) && !['pdf','docx','txt','xlsx','csv','png','jpg','jpeg','webp'].includes(ext)) {
+      throw new Error(`Unsupported file type: ${file.mimetype}`);
+    }
+
+    const type = file.mimetype.startsWith('image/') ? 'IMAGE'
+      : ['xlsx','csv'].includes(ext) ? 'SPREADSHEET'
+      : 'DOCUMENT';
+
+    const artifact = await this.prisma.artifact.create({
+      data: {
+        projectId,
+        type,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        storageKey: `artifacts/${projectId}/${Date.now()}-${file.originalname}`,
+        status: 'UPLOADED',
+      },
+    });
+
+    await this.storage.save(artifact.storageKey!, file.buffer);
+    return artifact;
+  }
+
   async parseArtifact(id: string) {
     const artifact = await this.prisma.artifact.findUnique({ where: { id } });
     if (!artifact) throw new NotFoundException(`Artifact ${id} was not found`);
 
-    const parsedContent = {
-      text:
-        artifact.sourceText ??
-        'User can login, recover password, generate test cases, review coverage, and export Excel.',
-      parser: 'phase1_demo_parser',
-    };
+    // Mark as PARSING immediately
+    await this.prisma.artifact.update({
+      where: { id },
+      data: { status: 'PARSING' },
+    });
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.artifact.update({
+    try {
+      let parsedContent: Record<string, unknown>;
+
+      if (artifact.sourceText) {
+        // TEXT or FIGMA artifact — use sourceText directly
+        parsedContent = {
+          text: artifact.sourceText,
+          parser: artifact.type === 'FIGMA' ? 'figma_url' : 'text_plain',
+        };
+      } else if (artifact.storageKey) {
+        // Binary file stored on disk — read and parse
+        const fileBuffer = await this.storage.read(artifact.storageKey);
+        if (!fileBuffer) {
+          throw new NotFoundException(
+            `File not found in storage: ${artifact.storageKey}`,
+          );
+        }
+        const result = await this.parser.parseBuffer(
+          fileBuffer,
+          artifact.mimeType ?? '',
+          artifact.fileName ?? undefined,
+        );
+        parsedContent = {
+          text: result.text,
+          parser: result.parser,
+          ...(result.pageCount != null ? { pageCount: result.pageCount } : {}),
+          ...(result.sheetNames ? { sheetNames: result.sheetNames } : {}),
+          ...(result.warnings?.length ? { warnings: result.warnings } : {}),
+        };
+      } else {
+        parsedContent = {
+          text: 'No content available.',
+          parser: 'empty',
+          warnings: ['Artifact has no sourceText and no storageKey'],
+        };
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.artifact.update({
+          where: { id },
+          data: { status: 'PARSED', parsedContent: parsedContent as Prisma.InputJsonValue },
+        });
+        return this.createWorkflowRun(tx, artifact.projectId, 'artifact_parse', {
+          artifactId: id,
+          parser: parsedContent.parser,
+          textLength: typeof parsedContent.text === 'string' ? parsedContent.text.length : 0,
+        });
+      });
+    } catch (err) {
+      await this.prisma.artifact.update({
         where: { id },
         data: {
-          status: 'PARSED',
-          parsedContent,
+          status: 'FAILED',
+          errorReason: err instanceof Error ? err.message : String(err),
         },
       });
-
-      return this.createWorkflowRun(tx, artifact.projectId, 'artifact_parse', {
-        artifactId: id,
-        parsedContent,
-      });
-    });
+      throw err;
+    }
   }
 
   async analyzeRequirement(projectId: string, dto: AnalyzeRequirementDto) {
@@ -627,29 +715,67 @@ export class Phase1Service {
 
   async exportExcel(id: string) {
     const set = await this.getTestcaseSet(id);
-    return this.prisma.$transaction(async (tx) => {
-      const exportArtifact = await tx.exportArtifact.create({
+
+    // Create export record in RUNNING state
+    const exportArtifact = await this.prisma.exportArtifact.create({
+      data: {
+        projectId: set.projectId,
+        testcaseSetId: id,
+        format: 'xlsx',
+        status: 'RUNNING',
+        fileName: `testcases-v${set.versionNo}.xlsx`,
+        storageKey: `exports/${set.id}/testcases-v${set.versionNo}.xlsx`,
+      },
+    });
+
+    try {
+      const project = await this.prisma.project.findUnique({
+        where: { id: set.projectId },
+        select: { name: true },
+      });
+
+      const result = await this.exporter.exportTestcases(
+        set.testCases,
+        set.versionNo,
+        project?.name,
+      );
+
+      await this.storage.save(exportArtifact.storageKey!, result.buffer);
+
+      await this.prisma.exportArtifact.update({
+        where: { id: exportArtifact.id },
         data: {
-          projectId: set.projectId,
-          testcaseSetId: id,
-          format: 'xlsx',
           status: 'SUCCEEDED',
-          fileName: `testcases-${set.versionNo}.xlsx`,
-          storageKey: `exports/${set.id}/testcases-${set.versionNo}.xlsx`,
-          sizeBytes: 8192,
+          fileName: result.fileName,
+          sizeBytes: result.sizeBytes,
         },
       });
+
       await this.audit.log({
         projectId: set.projectId,
         action: 'export.created',
         entityType: 'ExportArtifact',
         entityId: exportArtifact.id,
-        metadata: { testcaseSetId: id, format: 'xlsx' },
+        metadata: { testcaseSetId: id, format: 'xlsx', sizeBytes: result.sizeBytes },
       });
-      return this.createWorkflowRun(tx, set.projectId, 'excel_export', {
-        exportArtifactId: exportArtifact.id,
+
+      return this.prisma.$transaction(async (tx) => {
+        return this.createWorkflowRun(tx, set.projectId, 'excel_export', {
+          exportArtifactId: exportArtifact.id,
+          fileName: result.fileName,
+          sizeBytes: result.sizeBytes,
+        });
       });
-    });
+    } catch (err) {
+      await this.prisma.exportArtifact.update({
+        where: { id: exportArtifact.id },
+        data: {
+          status: 'FAILED',
+          errorReason: err instanceof Error ? err.message : String(err),
+        },
+      });
+      throw err;
+    }
   }
 
   listExports(projectId: string) {
@@ -665,10 +791,14 @@ export class Phase1Service {
     });
     if (!exportArtifact)
       throw new NotFoundException(`Export ${id} was not found`);
-    return {
-      url: `/api/exports/${id}/download/mock-file`,
-      fileName: exportArtifact.fileName,
-    };
+    if (exportArtifact.status !== 'SUCCEEDED' || !exportArtifact.storageKey) {
+      throw new NotFoundException(`Export ${id} is not ready for download`);
+    }
+    const buffer = await this.storage.read(exportArtifact.storageKey);
+    if (!buffer) {
+      throw new NotFoundException(`Export file not found in storage`);
+    }
+    return { buffer, fileName: exportArtifact.fileName ?? `export-${id}.xlsx` };
   }
 
   async getWorkflowRun(id: string) {

@@ -7,8 +7,14 @@ import {
   Param,
   Patch,
   Post,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import {
   AnalyzeRequirementDto,
   ApproveDto,
@@ -30,6 +36,15 @@ export class Phase1Controller {
     @Body() dto: CreateArtifactDto,
   ) {
     return this.phase1Service.createArtifact(projectId, dto);
+  }
+
+  @Post('projects/:projectId/artifacts/upload')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadArtifact(
+    @Param('projectId') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.phase1Service.uploadArtifact(projectId, file);
   }
 
   @Get('projects/:projectId/artifacts')
@@ -145,8 +160,12 @@ export class Phase1Controller {
   }
 
   @Get('exports/:id/download')
-  downloadExport(@Param('id') id: string) {
-    return this.phase1Service.downloadExport(id);
+  async downloadExport(@Param('id') id: string, @Res() res: Response) {
+    const { buffer, fileName } = await this.phase1Service.downloadExport(id);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', buffer.byteLength);
+    res.end(buffer);
   }
 
   @Get('workflow-runs/:id')
