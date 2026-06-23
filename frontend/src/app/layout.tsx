@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { QueryProvider } from '@/lib/query-client';
-import { MockProvider } from '@/components/MockProvider';
 import './globals.css';
 
 const geistSans = Geist({
@@ -25,9 +24,7 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
       <body className="min-h-full bg-background text-foreground antialiased">
-        <MockProvider>
-          <QueryProvider>{children}</QueryProvider>
-        </MockProvider>
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );
