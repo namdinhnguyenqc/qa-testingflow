@@ -73,7 +73,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <ProjectStepper activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 min-h-full">
         {activeTab === 'input' && (
           <TabInput
             projectId={id}
@@ -121,6 +122,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         {activeTab === 'export' && (
           <TabExport projectId={id} testcaseSetId={testcaseSetId} />
         )}
+        </div>
       </div>
     </div>
   );

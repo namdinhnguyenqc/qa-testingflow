@@ -131,9 +131,9 @@ export function TabAnalyze({ projectId, requirementVersionId, artifactId }: Prop
           {requirementVersionId ? 'Chưa có item nào. Nhấn "Phân tích lại" để bắt đầu.' : 'Chưa có yêu cầu nào được phân tích. Vào tab Đầu vào để tải file lên.'}
         </div>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
+        <div className="rounded-md border overflow-x-auto bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50">
+            <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">ID</th>
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Module</th>

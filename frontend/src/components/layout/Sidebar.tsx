@@ -52,7 +52,7 @@ function NavItemLink({ href, label, icon: Icon }: NavItem) {
     <Link
       href={href}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
         active
           ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600'
           : 'text-gray-600 hover:bg-gray-50 border-l-2 border-transparent',
@@ -82,7 +82,7 @@ export function Sidebar() {
             <p className="text-xs text-gray-400 uppercase font-semibold px-3 mb-2 tracking-wider">
               {section.label}
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {section.items.map((item) => (
                 <NavItemLink key={item.href} {...item} />
               ))}
