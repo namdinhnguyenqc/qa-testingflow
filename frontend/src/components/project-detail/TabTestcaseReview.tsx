@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Square, Minus } from 'lucide-react';
+import { CheckSquare, Square, Minus, Check, X, Pencil } from 'lucide-react';
 import { testcasesApi } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -62,6 +62,23 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
   const bulkMutation = useMutation({
     mutationFn: ({ ids, status }: { ids: string[]; status: TestcaseStatus }) =>
       Promise.all(ids.map((id) => testcasesApi.updateCase(id, { status }))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['testcase-set', testcaseSetId] });
+      setSelectedIds(new Set());
+    },
+  });
+
+  const quickStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TestcaseStatus }) =>
+      testcasesApi.updateCase(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['testcase-set', testcaseSetId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) =>
+      Promise.all(ids.map((id) => testcasesApi.deleteCase(id))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['testcase-set', testcaseSetId] });
       setSelectedIds(new Set());
@@ -201,6 +218,18 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
             >
               Bỏ chọn
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={() => {
+                const ids = [...selectedIds].filter((id) => filteredIds.includes(id));
+                deleteMutation.mutate(ids);
+              }}
+              loading={deleteMutation.isPending}
+            >
+              Xóa
+            </Button>
           </div>
         </div>
       )}
@@ -217,9 +246,9 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
           Không tìm thấy testcase phù hợp.
         </div>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
+        <div className="rounded-md border overflow-x-auto bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 sticky top-0">
+            <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-3 py-2 w-8">
                   <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
@@ -320,20 +349,46 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                             </Button>
                           </div>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              setEditing({
-                                id: tc.id,
-                                title: tc.title,
-                                expectedResult: tc.expectedResult,
-                                status: tc.status,
-                              })
-                            }
-                          >
-                            Sửa
-                          </Button>
+                          <div className="flex gap-1 items-center">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 px-2"
+                              title="Duyệt"
+                              onClick={() => quickStatusMutation.mutate({ id: tc.id, status: 'APPROVED' })}
+                              loading={quickStatusMutation.isPending && quickStatusMutation.variables?.id === tc.id}
+                            >
+                              <Check size={13} />
+                              <span className="text-xs">Duyệt</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
+                              title="Từ chối"
+                              onClick={() => quickStatusMutation.mutate({ id: tc.id, status: 'REJECTED' })}
+                              loading={quickStatusMutation.isPending && quickStatusMutation.variables?.id === tc.id}
+                            >
+                              <X size={13} />
+                              <span className="text-xs">Từ chối</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="px-2"
+                              title="Sửa"
+                              onClick={() =>
+                                setEditing({
+                                  id: tc.id,
+                                  title: tc.title,
+                                  expectedResult: tc.expectedResult,
+                                  status: tc.status,
+                                })
+                              }
+                            >
+                              <Pencil size={13} />
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>

@@ -33,30 +33,32 @@ export default function ConfigPage() {
     <div className="p-8">
       <PageHeader title="Cấu hình hệ thống" subtitle="Providers, quality gates, và prompt versions" />
 
-      {/* Tab nav */}
-      <div className="flex gap-1 border-b mb-6">
-        {([
-          { id: 'providers', label: 'AI Providers' },
-          { id: 'gates', label: 'Quality Gates' },
-          { id: 'prompts', label: 'Prompt Versions' },
-        ] as { id: ConfigTab; label: string }[]).map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        {/* Tab nav */}
+        <div className="flex gap-1 border-b mb-6">
+          {([
+            { id: 'providers', label: 'AI Providers' },
+            { id: 'gates', label: 'Quality Gates' },
+            { id: 'prompts', label: 'Prompt Versions' },
+          ] as { id: ConfigTab; label: string }[]).map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === id
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      {activeTab === 'providers' && <ProvidersTab />}
-      {activeTab === 'gates' && <GatesTab />}
-      {activeTab === 'prompts' && <PromptsTab />}
+        {activeTab === 'providers' && <ProvidersTab />}
+        {activeTab === 'gates' && <GatesTab />}
+        {activeTab === 'prompts' && <PromptsTab />}
+      </div>
     </div>
   );
 }

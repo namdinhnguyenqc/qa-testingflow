@@ -108,6 +108,8 @@ export const testcasesApi = {
     apiClient.get<TestcaseSet>(`/testcase-sets/${setId}`).then((r) => r.data),
   updateCase: (caseId: string, body: UpdateTestCaseRequest) =>
     apiClient.patch<TestCase>(`/test-cases/${caseId}`, body).then((r) => r.data),
+  deleteCase: (id: string) =>
+    apiClient.delete(`/test-cases/${id}`).then((r) => r.data),
 };
 
 // Coverage
