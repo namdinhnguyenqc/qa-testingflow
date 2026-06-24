@@ -139,7 +139,7 @@ export default function CostDashboardPage() {
                 <p className="text-xs text-gray-400">Không có dữ liệu</p>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {data.byModel
+                  {[...data.byModel]
                     .sort((a, b) => b.costUsd - a.costUsd)
                     .map((m) => (
                       <div key={`${m.provider}-${m.model}`}>
@@ -150,7 +150,7 @@ export default function CostDashboardPage() {
                           </div>
                           <span className="text-xs font-mono text-gray-600">${m.costUsd.toFixed(4)}</span>
                         </div>
-                        <MiniBar value={m.calls} max={maxModelCost > 0 ? m.calls : 1} color="bg-blue-400" />
+                        <MiniBar value={m.costUsd} max={maxModelCost} color="bg-blue-400" />
                         {m.errors > 0 && (
                           <p className="text-xs text-red-400 mt-0.5">{m.errors} lỗi</p>
                         )}
@@ -167,7 +167,7 @@ export default function CostDashboardPage() {
                 <p className="text-xs text-gray-400">Không có dữ liệu</p>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {data.bySkill
+                  {[...data.bySkill]
                     .sort((a, b) => b.calls - a.calls)
                     .map((s) => (
                       <div key={s.skillName}>

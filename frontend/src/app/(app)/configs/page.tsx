@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, Loader2, Plus, Zap, GitCompare } from 'lucide-react';
 import { aiGatewayApi, configsApi, promptsApi, promptCompareApi } from '@/lib/api';
+import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -433,22 +434,18 @@ function SecretsTab() {
 
   const { data: secrets, isLoading, refetch } = useQuery<SecretMeta[]>({
     queryKey: ['secrets'],
-    queryFn: () => fetch('/api/backend/configs/secrets', {
-      headers: { cookie: document.cookie },
-      credentials: 'include',
-    }).then((r) => r.json()),
+    queryFn: () => apiClient.get<SecretMeta[]>('/configs/secrets').then((r) => r.data),
+    staleTime: 60_000,
   });
 
   async function handleRotate(name: string) {
     setRotatingId(name);
     try {
-      const res = await fetch(`/api/backend/configs/secrets/${name}/rotate`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await res.json() as { rotatedAt: string };
+      const { data } = await apiClient.post<{ rotatedAt: string }>(`/configs/secrets/${name}/rotate`);
       setRotated((p) => ({ ...p, [name]: data.rotatedAt }));
       void refetch();
+    } catch {
+      // error surfaced by apiClient interceptor
     } finally {
       setRotatingId(null);
     }

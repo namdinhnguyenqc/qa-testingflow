@@ -160,7 +160,6 @@ Return ONLY valid JSON, no markdown fences.`,
           content: skill.content,
           versionNo: 1,
           isActive: true,
-          description: `Default prompt for ${skill.name}`,
         },
       });
       console.log(`✓ Prompt seeded & activated: ${skill.name}`);

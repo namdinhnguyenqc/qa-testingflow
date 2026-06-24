@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const protectedPrefixes = ['/dashboard', '/projects', '/configs', '/audit-logs'];
 
-const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+const BYPASS_AUTH =
+  process.env.NODE_ENV === 'development' &&
+  process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
 
 export function middleware(request: NextRequest) {
   if (BYPASS_AUTH) return NextResponse.next();

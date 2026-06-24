@@ -202,6 +202,7 @@ export class Phase2Controller {
     @Query('q') query: string,
     @Query('topK') topK?: string,
   ) {
-    return this.embeddingService.semanticSearch(id, query, topK ? Number(topK) : 10);
+    const k = topK ? parseInt(topK, 10) : 10;
+    return this.embeddingService.semanticSearch(id, query, Number.isFinite(k) && k > 0 ? Math.min(k, 100) : 10);
   }
 }

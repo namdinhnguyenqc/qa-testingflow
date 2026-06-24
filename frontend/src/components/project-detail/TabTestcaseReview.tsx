@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { Fragment, useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CheckSquare, Square, Minus, Check, X, Pencil } from 'lucide-react';
@@ -257,7 +257,7 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
           Không tìm thấy testcase phù hợp.
         </div>
       ) : (
-        <div ref={tableContainerRef} className="rounded-md border overflow-auto bg-white" style={{ maxHeight: useVirtual ? 520 : undefined }}>
+        <div ref={tableContainerRef} className="rounded-md border overflow-auto bg-white" style={{ maxHeight: 520 }}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
@@ -281,15 +281,17 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                 <th className="px-3 py-2 w-16" />
               </tr>
             </thead>
-            <tbody className="divide-y" style={useVirtual ? { height: rowVirtualizer.getTotalSize() } : undefined}>
+            <tbody className="divide-y">
+              {useVirtual && rowVirtualizer.getVirtualItems()[0]?.start > 0 && (
+                <tr aria-hidden><td colSpan={8} style={{ height: rowVirtualizer.getVirtualItems()[0].start, padding: 0 }} /></tr>
+              )}
               {(useVirtual ? rowVirtualizer.getVirtualItems().map((vRow) => filtered[vRow.index]) : filtered).map((tc) => {
                 const isEditing = editing?.id === tc.id;
                 const isExpanded = expandedId === tc.id;
                 const isSelected = selectedIds.has(tc.id);
                 return (
-                  <>
+                  <Fragment key={tc.id}>
                     <tr
-                      key={tc.id}
                       className={cn(
                         'hover:bg-muted/20',
                         isEditing && 'bg-primary/5',
@@ -425,9 +427,17 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
+              {useVirtual && (() => {
+                const items = rowVirtualizer.getVirtualItems();
+                const last = items[items.length - 1];
+                const paddingBottom = last ? rowVirtualizer.getTotalSize() - last.end : 0;
+                return paddingBottom > 0
+                  ? <tr aria-hidden><td colSpan={8} style={{ height: paddingBottom, padding: 0 }} /></tr>
+                  : null;
+              })()}
             </tbody>
           </table>
         </div>

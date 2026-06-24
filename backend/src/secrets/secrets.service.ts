@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface SecretMeta {
   name: string;
@@ -19,10 +20,10 @@ const TRACKED_SECRETS: { name: string; envKey: string }[] = [
 
 @Injectable()
 export class SecretsService {
-  // In-memory rotation log (survives per process lifetime; persisted via audit in real Vault)
-  private readonly rotationLog = new Map<string, Date>();
-
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   resolve(secretRef: string): string {
     const envKey = this.toEnvKey(secretRef);
@@ -33,7 +34,19 @@ export class SecretsService {
     return value;
   }
 
-  listSecrets(): SecretMeta[] {
+  async listSecrets(): Promise<SecretMeta[]> {
+    const logs = await this.prisma.auditLog.findMany({
+      where: { action: 'secret.rotated', entityType: 'Secret' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const lastRotated = new Map<string, string>();
+    for (const log of logs) {
+      if (log.entityId && !lastRotated.has(log.entityId)) {
+        lastRotated.set(log.entityId, log.createdAt.toISOString());
+      }
+    }
+
     return TRACKED_SECRETS.map((s) => {
       const value = this.configService.get<string>(s.envKey);
       return {
@@ -41,12 +54,12 @@ export class SecretsService {
         envKey: s.envKey,
         masked: value ? this.mask(value)! : '(not set)',
         configured: !!value,
-        rotatedAt: this.rotationLog.get(s.name)?.toISOString() ?? null,
+        rotatedAt: lastRotated.get(s.name) ?? null,
       };
     });
   }
 
-  rotateSecret(name: string): { name: string; rotatedAt: string; message: string } {
+  async rotateSecret(name: string): Promise<{ name: string; rotatedAt: string; message: string }> {
     const entry = TRACKED_SECRETS.find((s) => s.name === name);
     if (!entry) {
       throw new NotFoundException(`Secret "${name}" is not a tracked secret`);
@@ -57,12 +70,19 @@ export class SecretsService {
     }
 
     const rotatedAt = new Date();
-    this.rotationLog.set(name, rotatedAt);
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'secret.rotated',
+        entityType: 'Secret',
+        entityId: name,
+        metadata: { envKey: entry.envKey, rotatedAt: rotatedAt.toISOString() } as never,
+      },
+    });
 
     return {
       name,
       rotatedAt: rotatedAt.toISOString(),
-      message: `Secret "${name}" rotation acknowledged. Update the env var ${entry.envKey} and restart the service to complete rotation.`,
+      message: `Secret "${name}" rotation recorded. Update the env var ${entry.envKey} and restart the service to complete rotation.`,
     };
   }
 
