@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, Pencil } from 'lucide-react';
@@ -33,36 +33,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   });
 
   // Bootstrap: load latest requirement version and testcase set on first mount
-  useQuery({
+  const { data: bootstrapVersions } = useQuery({
     queryKey: ['requirement-versions-bootstrap', id],
     queryFn: () => requirementsApi.listVersions(id),
     enabled: !requirementVersionId,
-    select: (versions) => {
-      if (!versions.length) return null;
-      const latest = versions[versions.length - 1];
-      setRequirementVersionId(latest.id);
-      if (latest.status === 'APPROVED' || latest.status === 'LOCKED') {
-        setIsRequirementApproved(true);
-      }
-      return latest;
-    },
   });
 
-  useQuery({
+  useEffect(() => {
+    if (!bootstrapVersions?.length) return;
+    const latest = bootstrapVersions[bootstrapVersions.length - 1];
+    setRequirementVersionId(latest.id);
+    if (latest.status === 'APPROVED' || latest.status === 'LOCKED') {
+      setIsRequirementApproved(true);
+    }
+  }, [bootstrapVersions]);
+
+  const { data: bootstrapTestcaseSet } = useQuery({
     queryKey: ['testcase-set-bootstrap', requirementVersionId],
     queryFn: async () => {
       if (!requirementVersionId) return null;
       const version = await requirementsApi.getVersion(requirementVersionId);
       const sets = version.testcaseSets;
-      if (sets?.length) {
-        const latest = sets[sets.length - 1];
-        setTestcaseSetId(latest.id);
-        return latest;
-      }
-      return null;
+      return sets?.length ? sets[sets.length - 1] : null;
     },
     enabled: !!requirementVersionId && !testcaseSetId,
   });
+
+  useEffect(() => {
+    if (bootstrapTestcaseSet) {
+      setTestcaseSetId(bootstrapTestcaseSet.id);
+    }
+  }, [bootstrapTestcaseSet]);
 
   if (isLoading) return <PageSpinner />;
   if (!project) {
