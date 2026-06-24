@@ -211,8 +211,10 @@ export class Phase1Service {
             sourceArtifactId: artifact.id,
             versionNo,
             status: 'ANALYZED',
-            qualityScore: 84,
-            qualityJson: this.qualityJson(),
+            qualityScore: typeof (aiOutput as Record<string, unknown>).qualityScore === 'number'
+              ? (aiOutput as Record<string, unknown>).qualityScore as number
+              : null,
+            qualityJson: Prisma.JsonNull,
             contentJson: (aiOutput.contentJson ??
               this.requirementJson(language)) as Prisma.InputJsonValue,
             contentMarkdown:
@@ -911,15 +913,15 @@ export class Phase1Service {
       return {
         requirementVersionId,
         externalId: this.asString(
-          v.externalId ?? v.id,
+          v.externalId ?? v.code ?? v.id,
           `REQ_AI_${String(index + 1).padStart(3, '0')}`,
         ),
-        module: this.asString(v.module, 'General'),
-        feature: this.asString(v.feature, 'Requirement'),
+        module: this.asString(v.module ?? v.category ?? v.section, 'General'),
+        feature: this.asString(v.feature ?? v.title ?? v.name, 'Requirement'),
         type: 'FUNCTIONAL' as const,
         priority: this.toPriority(v.priority),
         testable: Boolean(v.testable ?? true),
-        content: this.asString(v.content ?? v.description, ''),
+        content: this.asString(v.content ?? v.description ?? v.text, ''),
         metadata: (v.metadata ?? {}) as Prisma.InputJsonValue,
       };
     });
