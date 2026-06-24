@@ -12,6 +12,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
+import { SecretsService } from '../secrets/secrets.service';
 import {
   CostSummaryQueryDto,
   CreatePromptVersionDto,
@@ -20,6 +21,7 @@ import {
   UpdateBudgetConfigDto,
   UpdateGateConfigDto,
 } from './dto';
+import { EmbeddingService } from './embedding.service';
 import { Phase2Service } from './phase2.service';
 
 @ApiTags('phase2')
@@ -27,7 +29,11 @@ import { Phase2Service } from './phase2.service';
 @Roles('admin')
 @Controller()
 export class Phase2Controller {
-  constructor(private readonly phase2Service: Phase2Service) {}
+  constructor(
+    private readonly phase2Service: Phase2Service,
+    private readonly embeddingService: EmbeddingService,
+    private readonly secretsService: SecretsService,
+  ) {}
 
   // ─── Prompt versioning (A2.2) ─────────────────────────────────────────
 
@@ -167,5 +173,35 @@ export class Phase2Controller {
     @Query('period') period?: 'day' | 'week' | 'month',
   ) {
     return this.phase2Service.getCostDashboard(projectId, period);
+  }
+
+  // ─── A3.1 Secret management ───────────────────────────────────────────
+
+  @Get('configs/secrets')
+  listSecrets() {
+    return this.secretsService.listSecrets();
+  }
+
+  @Post('configs/secrets/:name/rotate')
+  @HttpCode(HttpStatus.OK)
+  rotateSecret(@Param('name') name: string) {
+    return this.secretsService.rotateSecret(name);
+  }
+
+  // ─── A3.2 pgvector semantic search ───────────────────────────────────
+
+  @Post('requirements/versions/:id/embed')
+  @HttpCode(HttpStatus.OK)
+  embedRequirementVersion(@Param('id') id: string) {
+    return this.embeddingService.embedRequirementVersion(id);
+  }
+
+  @Get('requirements/versions/:id/search')
+  semanticSearch(
+    @Param('id') id: string,
+    @Query('q') query: string,
+    @Query('topK') topK?: string,
+  ) {
+    return this.embeddingService.semanticSearch(id, query, topK ? Number(topK) : 10);
   }
 }
