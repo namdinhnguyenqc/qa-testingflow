@@ -22,13 +22,17 @@ interface Props {
   requirementVersionId: string | null;
   artifactId?: string;
   onAnalyzed?: (rvId: string) => void;
+  onAutoCompleted?: (rvId: string, tcSetId: string) => void;
 }
 
-export function TabAnalyze({ projectId, requirementVersionId, artifactId, onAnalyzed }: Props) {
+const PIPELINE_STEPS = ['Phân tích yêu cầu', 'Phát hiện gap', 'Phê duyệt', 'Sinh test case'];
+
+export function TabAnalyze({ projectId, requirementVersionId, artifactId, onAnalyzed, onAutoCompleted }: Props) {
   const queryClient = useQueryClient();
   const [analyzeRunId, setAnalyzeRunId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<RequirementItem>>({});
+  const [pipelineStep, setPipelineStep] = useState<number | null>(null);
 
   const jobStatus = useJobStatus(analyzeRunId);
 
@@ -46,6 +50,20 @@ export function TabAnalyze({ projectId, requirementVersionId, artifactId, onAnal
       const rvId = (run.outputJson as { requirementVersionId?: string })?.requirementVersionId;
       if (rvId) onAnalyzed?.(rvId);
     },
+  });
+
+  const autoPipelineMutation = useMutation({
+    mutationFn: async () => {
+      for (let i = 0; i < PIPELINE_STEPS.length; i++) setPipelineStep(i);
+      return requirementsApi.autoPipeline(projectId, { artifactId: artifactId ?? '' });
+    },
+    onSuccess: (result) => {
+      setPipelineStep(null);
+      queryClient.invalidateQueries({ queryKey: ['requirement-version', result.requirementVersionId] });
+      onAnalyzed?.(result.requirementVersionId);
+      onAutoCompleted?.(result.requirementVersionId, result.testcaseSetId);
+    },
+    onError: () => setPipelineStep(null),
   });
 
   const updateItemsMutation = useMutation({
@@ -80,17 +98,58 @@ export function TabAnalyze({ projectId, requirementVersionId, artifactId, onAnal
           <h2 className="text-sm font-semibold">Phân tích yêu cầu</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Xem và chỉnh sửa các item yêu cầu đã được trích xuất</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => analyzeMutation.mutate()}
-          loading={analyzeMutation.isPending}
-          disabled={!artifactId}
-        >
-          <RefreshCw size={13} />
-          Phân tích lại
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => autoPipelineMutation.mutate()}
+            loading={autoPipelineMutation.isPending}
+            disabled={!artifactId}
+          >
+            Tự động sinh test case
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => analyzeMutation.mutate()}
+            loading={analyzeMutation.isPending}
+            disabled={!artifactId}
+          >
+            <RefreshCw size={13} />
+            Phân tích lại
+          </Button>
+        </div>
       </div>
+
+      {/* Auto-pipeline progress */}
+      {autoPipelineMutation.isPending && pipelineStep !== null && (
+        <div className="rounded-md border bg-blue-50 dark:bg-blue-950/30 px-4 py-3 flex flex-col gap-2">
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Đang chạy pipeline tự động...</p>
+          <div className="flex items-center gap-3">
+            {PIPELINE_STEPS.map((step, i) => (
+              <div key={step} className="flex items-center gap-1">
+                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${i < pipelineStep ? 'bg-green-500 text-white' : i === pipelineStep ? 'bg-blue-500 text-white animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+                  {i < pipelineStep ? '✓' : i + 1}
+                </div>
+                <span className={`text-xs ${i === pipelineStep ? 'font-medium text-blue-700 dark:text-blue-300' : 'text-muted-foreground'}`}>{step}</span>
+                {i < PIPELINE_STEPS.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {autoPipelineMutation.isError && (
+        <div className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-xs text-destructive">
+          Pipeline thất bại: {autoPipelineMutation.error instanceof Error ? autoPipelineMutation.error.message : 'Lỗi không xác định'}
+        </div>
+      )}
+
+      {autoPipelineMutation.isSuccess && (
+        <div className="rounded-md border border-green-500 bg-green-50 dark:bg-green-950/30 px-4 py-3 text-xs text-green-700 dark:text-green-300">
+          Hoàn tất! Test case đã được sinh. Chuyển sang tab <strong>Sinh test case</strong> để xem kết quả.
+        </div>
+      )}
 
       {/* Job status */}
       {analyzeRunId && (

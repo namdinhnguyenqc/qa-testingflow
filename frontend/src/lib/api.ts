@@ -66,6 +66,13 @@ export const requirementsApi = {
     apiClient
       .post<WorkflowRun>(`/projects/${projectId}/requirements/analyze`, body)
       .then((r) => r.data),
+  autoPipeline: (projectId: string, body: AnalyzeRequirementRequest) =>
+    apiClient
+      .post<{ requirementVersionId: string; testcaseSetId: string; status: string }>(
+        `/projects/${projectId}/requirements/auto-pipeline`,
+        body,
+      )
+      .then((r) => r.data),
   getVersion: (versionId: string) =>
     apiClient.get<RequirementVersion>(`/requirements/versions/${versionId}`).then((r) => r.data),
   updateItems: (versionId: string, items: RequirementItem[]) =>

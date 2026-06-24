@@ -72,6 +72,15 @@ export class Phase1Controller {
     return this.phase1Service.analyzeRequirement(projectId, dto);
   }
 
+  @Post('projects/:projectId/requirements/auto-pipeline')
+  @HttpCode(HttpStatus.ACCEPTED)
+  autoPipeline(
+    @Param('projectId') projectId: string,
+    @Body() dto: AnalyzeRequirementDto,
+  ) {
+    return this.phase1Service.autoPipeline(projectId, dto.artifactId);
+  }
+
   @Get('requirements/versions/:id')
   getRequirementVersion(@Param('id') id: string) {
     return this.phase1Service.getRequirementVersion(id);

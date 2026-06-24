@@ -927,6 +927,24 @@ export class Phase1Service {
     });
   }
 
+  async autoPipeline(projectId: string, artifactId: string) {
+    // Step 1: Analyze requirements
+    const analyzeRun = await this.analyzeRequirement(projectId, { artifactId });
+    const requirementVersionId = (analyzeRun.outputJson as Record<string, string>).requirementVersionId;
+
+    // Step 2: Detect gaps
+    await this.detectGaps(requirementVersionId).catch(() => null);
+
+    // Step 3: Approve with override (skip gate checks for auto-pipeline)
+    await this.approveRequirement(requirementVersionId, { override: true });
+
+    // Step 4: Generate test cases
+    const tcRun = await this.generateTestcases(requirementVersionId, {});
+    const testcaseSetId = (tcRun.outputJson as Record<string, string>).testcaseSetId;
+
+    return { requirementVersionId, testcaseSetId, status: 'COMPLETED' };
+  }
+
   private normalizeGapItems(
     raw: unknown[],
     projectId: string,

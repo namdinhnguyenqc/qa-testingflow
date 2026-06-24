@@ -122,6 +122,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               requirementVersionId={requirementVersionId}
               artifactId={artifactId}
               onAnalyzed={(rvId) => setRequirementVersionId(rvId)}
+              onAutoCompleted={(rvId, tcSetId) => {
+                setRequirementVersionId(rvId);
+                setTestcaseSetId(tcSetId);
+                setActiveTab('testcase-review');
+              }}
             />
           )}
           {activeTab === 'gap-review' && (
