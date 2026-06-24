@@ -79,13 +79,12 @@ export class SkillRuntimeService {
         outputTokens: result.outputTokens,
       };
     } catch (err) {
-      this.logger.warn(
-        `Skill ${params.skillName} failed via AI, falling back to stub: ${String(err)}`,
+      this.logger.error(
+        `Skill ${params.skillName} failed via AI: ${String(err)}`,
       );
-      return {
-        output: await params.fallback(),
-        source: 'stub',
-      };
+      // Re-throw so the caller surfaces a real error to the user instead of
+      // silently returning dummy data that looks like a successful result.
+      throw err;
     }
   }
 
