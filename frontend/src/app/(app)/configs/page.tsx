@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, Loader2, Plus, Zap, GitCompare } from 'lucide-react';
 import { aiGatewayApi, configsApi, promptsApi, promptCompareApi } from '@/lib/api';
@@ -125,18 +125,18 @@ function GatesTab() {
   const [blockGaps, setBlockGaps] = useState(true);
   const [saved, setSaved] = useState(false);
 
-  useQuery({
+  const { data: gateConfig } = useQuery({
     queryKey: ['gate-config', projectId],
     queryFn: () => configsApi.getGate(projectId),
     enabled: !!projectId,
-    select: (data) => {
-      if (data) {
-        setMinScore(data.contentJson.minQualityScore);
-        setBlockGaps(data.contentJson.blockIfOpenGaps);
-      }
-      return data;
-    },
   });
+
+  useEffect(() => {
+    if (gateConfig) {
+      setMinScore(gateConfig.contentJson.minQualityScore);
+      setBlockGaps(gateConfig.contentJson.blockIfOpenGaps);
+    }
+  }, [gateConfig]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
