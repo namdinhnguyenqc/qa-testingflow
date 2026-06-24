@@ -101,20 +101,28 @@ export class SkillRuntimeService {
   }
 
   private detectPrimaryProvider(): { name: string; model: string } | null {
-    if (this.configService.get<string>('OPENAI_API_KEY')) {
+    if (this.configService.get<string>('GROQ_API_KEY')) {
       return {
-        name: 'openai',
-        model:
-          this.configService.get<string>('OPENAI_DEFAULT_MODEL') ??
-          'gpt-4.1-mini',
+        name: 'groq',
+        model: this.configService.get<string>('GROQ_DEFAULT_MODEL') ?? 'llama-3.3-70b-versatile',
+      };
+    }
+    if (this.configService.get<string>('GEMINI_API_KEY')) {
+      return {
+        name: 'gemini',
+        model: this.configService.get<string>('GEMINI_DEFAULT_MODEL') ?? 'gemini-2.0-flash',
       };
     }
     if (this.configService.get<string>('ANTHROPIC_API_KEY')) {
       return {
         name: 'anthropic',
-        model:
-          this.configService.get<string>('ANTHROPIC_DEFAULT_MODEL') ??
-          'claude-haiku-4-5-20251001',
+        model: this.configService.get<string>('ANTHROPIC_DEFAULT_MODEL') ?? 'claude-haiku-4-5-20251001',
+      };
+    }
+    if (this.configService.get<string>('OPENAI_API_KEY')) {
+      return {
+        name: 'openai',
+        model: this.configService.get<string>('OPENAI_DEFAULT_MODEL') ?? 'gpt-4o-mini',
       };
     }
     return null;
@@ -122,21 +130,17 @@ export class SkillRuntimeService {
 
   private detectFallbackProvider(): { name: string; model: string } | null {
     const primary = this.detectPrimaryProvider();
-    if (primary?.name === 'openai' && this.configService.get('ANTHROPIC_API_KEY')) {
-      return {
-        name: 'anthropic',
-        model:
-          this.configService.get<string>('ANTHROPIC_DEFAULT_MODEL') ??
-          'claude-haiku-4-5-20251001',
-      };
+    if (primary?.name === 'gemini' && this.configService.get('ANTHROPIC_API_KEY')) {
+      return { name: 'anthropic', model: this.configService.get<string>('ANTHROPIC_DEFAULT_MODEL') ?? 'claude-haiku-4-5-20251001' };
+    }
+    if (primary?.name === 'gemini' && this.configService.get('OPENAI_API_KEY')) {
+      return { name: 'openai', model: this.configService.get<string>('OPENAI_DEFAULT_MODEL') ?? 'gpt-4o-mini' };
     }
     if (primary?.name === 'anthropic' && this.configService.get('OPENAI_API_KEY')) {
-      return {
-        name: 'openai',
-        model:
-          this.configService.get<string>('OPENAI_DEFAULT_MODEL') ??
-          'gpt-4.1-mini',
-      };
+      return { name: 'openai', model: this.configService.get<string>('OPENAI_DEFAULT_MODEL') ?? 'gpt-4o-mini' };
+    }
+    if (primary?.name === 'openai' && this.configService.get('ANTHROPIC_API_KEY')) {
+      return { name: 'anthropic', model: this.configService.get<string>('ANTHROPIC_DEFAULT_MODEL') ?? 'claude-haiku-4-5-20251001' };
     }
     return null;
   }
