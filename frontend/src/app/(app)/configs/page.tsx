@@ -14,8 +14,12 @@ import type { CreatePromptVersionRequest } from '@/types/api';
 type ConfigTab = 'providers' | 'gates' | 'prompts' | 'secrets';
 
 const PROVIDER_LIST = [
-  { id: 'openai', label: 'OpenAI', models: ['gpt-4.1-mini', 'gpt-4o', 'gpt-4-turbo'] },
+  { id: 'ollama', label: 'Ollama Cloud', models: ['gemma3:4b', 'gemma3:12b', 'llama3.2', 'qwen2.5:7b', 'deepseek-v3.1:671b'] },
+  { id: 'groq', label: 'Groq (Free)', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
+  { id: 'openrouter', label: 'OpenRouter (Free)', models: ['meta-llama/llama-3.1-8b-instruct:free', 'google/gemma-2-9b-it:free', 'mistralai/mistral-7b-instruct:free'] },
+  { id: 'gemini', label: 'Google Gemini', models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] },
   { id: 'anthropic', label: 'Anthropic', models: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-8'] },
+  { id: 'openai', label: 'OpenAI', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'] },
 ];
 
 const SKILL_NAMES = [
@@ -72,6 +76,12 @@ function ProvidersTab() {
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string } | null>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
+  const { data: activeProvider } = useQuery({
+    queryKey: ['active-provider'],
+    queryFn: () => apiClient.get<{ provider: string | null; model: string | null }>('/configs/ai-providers/active').then(r => r.data),
+    staleTime: 30_000,
+  });
+
   async function testProvider(id: string) {
     setTesting((p) => ({ ...p, [id]: true }));
     try {
@@ -89,16 +99,35 @@ function ProvidersTab() {
 
   return (
     <div className="flex flex-col gap-4 max-w-xl">
+      {activeProvider?.provider ? (
+        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-2.5 flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+          <span className="text-sm text-green-800">
+            Đang dùng: <strong>{activeProvider.provider}</strong> · <code className="text-xs">{activeProvider.model}</code>
+          </span>
+        </div>
+      ) : (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5 flex items-center gap-2">
+          <XCircle size={14} className="text-destructive shrink-0" />
+          <span className="text-sm text-destructive">Chưa có AI provider nào được cấu hình</span>
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">
-        API keys đọc từ biến môi trường (<code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>).
+        API keys đọc từ biến môi trường. Provider đầu tiên có key hợp lệ sẽ được dùng.
       </p>
       {PROVIDER_LIST.map(({ id, label, models }) => {
         const result = testResults[id];
+        const isActive = activeProvider?.provider === id;
         return (
-          <Card key={id} className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold">{label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{models.join(' · ')}</p>
+          <Card key={id} className={`flex items-center justify-between gap-4 ${isActive ? 'border-green-400 ring-1 ring-green-300' : ''}`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">{label}</p>
+                {isActive && (
+                  <span className="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-2 py-0.5">ACTIVE</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{models.join(' · ')}</p>
               {result && (
                 <p className={`text-xs mt-1 flex items-center gap-1 ${result.ok ? 'text-green-600' : 'text-destructive'}`}>
                   {result.ok ? <CheckCircle2 size={11} /> : <XCircle size={11} />}

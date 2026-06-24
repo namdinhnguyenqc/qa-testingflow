@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import Ajv from 'ajv';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { SecretsService } from '../secrets/secrets.service';
 import {
@@ -47,10 +48,28 @@ export class AiGatewayService {
     adapters: AIProviderAdapter[],
     private readonly secretsService: SecretsService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
   ) {
     this.adapters = new Map(
       adapters.map((adapter) => [adapter.provider, adapter]),
     );
+  }
+
+  getActiveProvider(): { provider: string | null; model: string | null } {
+    const checks: Array<{ key: string; provider: string; modelKey: string; defaultModel: string }> = [
+      { key: 'OLLAMA_API_KEY',      provider: 'ollama',      modelKey: 'OLLAMA_DEFAULT_MODEL',      defaultModel: 'gemma3:4b' },
+      { key: 'OPENROUTER_API_KEY',  provider: 'openrouter',  modelKey: 'OPENROUTER_DEFAULT_MODEL',  defaultModel: 'meta-llama/llama-3.1-8b-instruct:free' },
+      { key: 'GROQ_API_KEY',        provider: 'groq',        modelKey: 'GROQ_DEFAULT_MODEL',        defaultModel: 'llama-3.3-70b-versatile' },
+      { key: 'GEMINI_API_KEY',      provider: 'gemini',      modelKey: 'GEMINI_DEFAULT_MODEL',      defaultModel: 'gemini-2.0-flash' },
+      { key: 'ANTHROPIC_API_KEY',   provider: 'anthropic',   modelKey: 'ANTHROPIC_DEFAULT_MODEL',   defaultModel: 'claude-haiku-4-5-20251001' },
+      { key: 'OPENAI_API_KEY',      provider: 'openai',      modelKey: 'OPENAI_DEFAULT_MODEL',      defaultModel: 'gpt-4o-mini' },
+    ];
+    for (const c of checks) {
+      if (this.configService.get<string>(c.key)) {
+        return { provider: c.provider, model: this.configService.get<string>(c.modelKey) ?? c.defaultModel };
+      }
+    }
+    return { provider: null, model: null };
   }
 
   async testConnection(providerId: string) {
