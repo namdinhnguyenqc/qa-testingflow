@@ -101,6 +101,18 @@ export class SkillRuntimeService {
   }
 
   private detectPrimaryProvider(): { name: string; model: string } | null {
+    if (this.configService.get<string>('OLLAMA_API_KEY')) {
+      return {
+        name: 'ollama',
+        model: this.configService.get<string>('OLLAMA_DEFAULT_MODEL') ?? 'gemma3:4b',
+      };
+    }
+    if (this.configService.get<string>('OPENROUTER_API_KEY')) {
+      return {
+        name: 'openrouter',
+        model: this.configService.get<string>('OPENROUTER_DEFAULT_MODEL') ?? 'meta-llama/llama-3.1-8b-instruct:free',
+      };
+    }
     if (this.configService.get<string>('GROQ_API_KEY')) {
       return {
         name: 'groq',

@@ -6,6 +6,8 @@ import { OpenAIAdapter } from './adapters/openai.adapter';
 import { AnthropicAdapter } from './adapters/anthropic.adapter';
 import { GeminiAdapter } from './adapters/gemini.adapter';
 import { GroqAdapter } from './adapters/groq.adapter';
+import { OpenRouterAdapter } from './adapters/openrouter.adapter';
+import { OllamaAdapter } from './adapters/ollama.adapter';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
@@ -18,6 +20,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     AnthropicAdapter,
     GeminiAdapter,
     GroqAdapter,
+    OpenRouterAdapter,
+    OllamaAdapter,
     {
       provide: AI_PROVIDER_ADAPTERS,
       useFactory: (
@@ -25,8 +29,10 @@ import { PrismaModule } from '../prisma/prisma.module';
         anthropicAdapter: AnthropicAdapter,
         geminiAdapter: GeminiAdapter,
         groqAdapter: GroqAdapter,
-      ) => [openAIAdapter, anthropicAdapter, geminiAdapter, groqAdapter],
-      inject: [OpenAIAdapter, AnthropicAdapter, GeminiAdapter, GroqAdapter],
+        openRouterAdapter: OpenRouterAdapter,
+        ollamaAdapter: OllamaAdapter,
+      ) => [openAIAdapter, anthropicAdapter, geminiAdapter, groqAdapter, openRouterAdapter, ollamaAdapter],
+      inject: [OpenAIAdapter, AnthropicAdapter, GeminiAdapter, GroqAdapter, OpenRouterAdapter, OllamaAdapter],
     },
   ],
   exports: [AiGatewayService],
