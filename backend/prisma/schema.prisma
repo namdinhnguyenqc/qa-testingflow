@@ -446,6 +446,22 @@ model PromptVersion {
   @@schema("aiqa_dev")
 }
 
+model WorkflowVersion {
+  id          String   @id @default(uuid())
+  name        String
+  versionNo   Int
+  isActive    Boolean  @default(false)
+  description String?
+  definition  Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([name, versionNo])
+  @@index([name])
+  @@map("workflow_versions")
+  @@schema("aiqa_dev")
+}
+
 model ExportArtifact {
   id            String       @id @default(uuid())
   projectId     String

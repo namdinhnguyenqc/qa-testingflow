@@ -458,6 +458,214 @@ export class Phase2Service {
     }
   }
 
+  // ─── A3.3 Workflow builder config ───────────────────────────────────────
+
+  private readonly REQUIRED_STEPS = [
+    'artifact_parse',
+    'requirement_analyze',
+    'testcase_generate',
+  ];
+
+  async createWorkflowVersion(dto: {
+    name: string;
+    description?: string;
+    definition: Record<string, unknown>;
+  }) {
+    this.validateWorkflowDefinition(dto.definition);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const latest = await this.prisma.workflowVersion.findFirst({
+        where: { name: dto.name },
+        orderBy: { versionNo: 'desc' },
+      });
+      const versionNo = (latest?.versionNo ?? 0) + 1;
+      try {
+        const created = await this.prisma.workflowVersion.create({
+          data: {
+            name: dto.name,
+            versionNo,
+            description: dto.description,
+            definition: dto.definition as Prisma.InputJsonValue,
+            isActive: false,
+          },
+        });
+        await this.audit.log({
+          action: 'workflow_version.created',
+          entityType: 'WorkflowVersion',
+          entityId: created.id,
+          metadata: { name: dto.name, versionNo },
+        });
+        return created;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002' &&
+          attempt === 0
+        ) continue;
+        throw error;
+      }
+    }
+    throw new ConflictException(`Workflow version conflict for "${dto.name}".`);
+  }
+
+  listWorkflowVersions(name?: string) {
+    return this.prisma.workflowVersion.findMany({
+      where: name ? { name } : undefined,
+      orderBy: [{ name: 'asc' }, { versionNo: 'desc' }],
+    });
+  }
+
+  async getWorkflowVersion(id: string) {
+    const wv = await this.prisma.workflowVersion.findUnique({ where: { id } });
+    if (!wv) throw new NotFoundException(`WorkflowVersion ${id} not found`);
+    return wv;
+  }
+
+  async activateWorkflowVersion(id: string) {
+    const wv = await this.getWorkflowVersion(id);
+    this.validateWorkflowDefinition(wv.definition as Record<string, unknown>);
+
+    const activated = await this.prisma.$transaction(async (tx) => {
+      await tx.workflowVersion.updateMany({
+        where: { name: wv.name, isActive: true },
+        data: { isActive: false },
+      });
+      return tx.workflowVersion.update({ where: { id }, data: { isActive: true } });
+    });
+
+    await this.audit.log({
+      action: 'workflow_version.activated',
+      entityType: 'WorkflowVersion',
+      entityId: id,
+      metadata: { name: wv.name, versionNo: wv.versionNo },
+    });
+    return activated;
+  }
+
+  private validateWorkflowDefinition(definition: Record<string, unknown>) {
+    const steps = (definition.steps as string[] | undefined) ?? [];
+    const missing = this.REQUIRED_STEPS.filter((s) => !steps.includes(s));
+    if (missing.length) {
+      throw new ConflictException(
+        `Workflow definition missing required steps: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  // ─── A3.4 Prompt version compare ────────────────────────────────────────
+
+  async comparePromptVersions(idA: string, idB: string) {
+    const [a, b] = await Promise.all([
+      this.getPromptVersion(idA),
+      this.getPromptVersion(idB),
+    ]);
+
+    const diff = this.lineDiff(a.content, b.content);
+
+    return {
+      a: { id: a.id, name: a.name, versionNo: a.versionNo, isActive: a.isActive, createdAt: a.createdAt },
+      b: { id: b.id, name: b.name, versionNo: b.versionNo, isActive: b.isActive, createdAt: b.createdAt },
+      diff,
+      changed: diff.some((line) => line.type !== 'equal'),
+    };
+  }
+
+  private lineDiff(
+    contentA: string,
+    contentB: string,
+  ): { type: 'equal' | 'removed' | 'added'; line: string }[] {
+    const linesA = contentA.split('\n');
+    const linesB = contentB.split('\n');
+    const result: { type: 'equal' | 'removed' | 'added'; line: string }[] = [];
+
+    const maxLen = Math.max(linesA.length, linesB.length);
+    for (let i = 0; i < maxLen; i++) {
+      const la = linesA[i];
+      const lb = linesB[i];
+      if (la === lb) {
+        result.push({ type: 'equal', line: la ?? '' });
+      } else {
+        if (la !== undefined) result.push({ type: 'removed', line: la });
+        if (lb !== undefined) result.push({ type: 'added', line: lb });
+      }
+    }
+    return result;
+  }
+
+  // ─── A3.5 Cost dashboard aggregation ────────────────────────────────────
+
+  async getCostDashboard(projectId: string | null, period: 'day' | 'week' | 'month' = 'month') {
+    const since = this.periodStart(period);
+
+    const logs = await this.prisma.aiCallLog.findMany({
+      where: {
+        ...(projectId ? { projectId } : {}),
+        createdAt: { gte: since },
+      },
+      select: {
+        provider: true,
+        model: true,
+        skillName: true,
+        inputTokens: true,
+        outputTokens: true,
+        totalTokens: true,
+        costUsd: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // By provider+model
+    const byModel = new Map<string, { provider: string; model: string; calls: number; costUsd: number; totalTokens: number; errors: number }>();
+    // By skill
+    const bySkill = new Map<string, { skillName: string; calls: number; costUsd: number; errors: number }>();
+    // Daily series
+    const dailyMap = new Map<string, { date: string; calls: number; costUsd: number }>();
+
+    for (const log of logs) {
+      // model breakdown
+      const mKey = `${log.provider}::${log.model}`;
+      const mVal = byModel.get(mKey) ?? { provider: log.provider, model: log.model, calls: 0, costUsd: 0, totalTokens: 0, errors: 0 };
+      mVal.calls++;
+      mVal.costUsd += log.costUsd ?? 0;
+      mVal.totalTokens += log.totalTokens ?? 0;
+      if (log.status !== 'SUCCEEDED') mVal.errors++;
+      byModel.set(mKey, mVal);
+
+      // skill breakdown
+      const sKey = log.skillName ?? 'unknown';
+      const sVal = bySkill.get(sKey) ?? { skillName: sKey, calls: 0, costUsd: 0, errors: 0 };
+      sVal.calls++;
+      sVal.costUsd += log.costUsd ?? 0;
+      if (log.status !== 'SUCCEEDED') sVal.errors++;
+      bySkill.set(sKey, sVal);
+
+      // daily series
+      const day = log.createdAt.toISOString().slice(0, 10);
+      const dVal = dailyMap.get(day) ?? { date: day, calls: 0, costUsd: 0 };
+      dVal.calls++;
+      dVal.costUsd += log.costUsd ?? 0;
+      dailyMap.set(day, dVal);
+    }
+
+    const totalCostUsd = logs.reduce((s, l) => s + (l.costUsd ?? 0), 0);
+    const totalTokens = logs.reduce((s, l) => s + (l.totalTokens ?? 0), 0);
+    const round6 = (n: number) => Math.round(n * 1_000_000) / 1_000_000;
+
+    return {
+      projectId: projectId ?? 'global',
+      period,
+      since: since.toISOString(),
+      totalCostUsd: round6(totalCostUsd),
+      totalCalls: logs.length,
+      totalTokens,
+      byModel: Array.from(byModel.values()).map((v) => ({ ...v, costUsd: round6(v.costUsd) })),
+      bySkill: Array.from(bySkill.values()).map((v) => ({ ...v, costUsd: round6(v.costUsd) })),
+      dailySeries: Array.from(dailyMap.values()).map((v) => ({ ...v, costUsd: round6(v.costUsd) })),
+    };
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private periodStart(period: 'day' | 'week' | 'month'): Date {

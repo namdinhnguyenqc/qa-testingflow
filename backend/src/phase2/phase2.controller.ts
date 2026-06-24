@@ -41,6 +41,14 @@ export class Phase2Controller {
     return this.phase2Service.listPromptVersions(name);
   }
 
+  @Get('configs/prompt-versions/compare')
+  comparePromptVersions(
+    @Query('idA') idA: string,
+    @Query('idB') idB: string,
+  ) {
+    return this.phase2Service.comparePromptVersions(idA, idB);
+  }
+
   @Get('configs/prompt-versions/:id')
   getPromptVersion(@Param('id') id: string) {
     return this.phase2Service.getPromptVersion(id);
@@ -119,5 +127,45 @@ export class Phase2Controller {
   @HttpCode(HttpStatus.OK)
   testSkillCall(@Body() dto: TestSkillDto) {
     return this.phase2Service.callSkillTest(dto);
+  }
+
+  // ─── A3.3 Workflow builder config ─────────────────────────────────────
+
+  @Post('configs/workflow-versions')
+  createWorkflowVersion(
+    @Body() dto: { name: string; description?: string; definition: Record<string, unknown> },
+  ) {
+    return this.phase2Service.createWorkflowVersion(dto);
+  }
+
+  @Get('configs/workflow-versions')
+  listWorkflowVersions(@Query('name') name?: string) {
+    return this.phase2Service.listWorkflowVersions(name);
+  }
+
+  @Get('configs/workflow-versions/:id')
+  getWorkflowVersion(@Param('id') id: string) {
+    return this.phase2Service.getWorkflowVersion(id);
+  }
+
+  @Post('configs/workflow-versions/:id/activate')
+  @HttpCode(HttpStatus.OK)
+  activateWorkflowVersion(@Param('id') id: string) {
+    return this.phase2Service.activateWorkflowVersion(id);
+  }
+
+  // ─── A3.5 Cost dashboard aggregation ─────────────────────────────────
+
+  @Get('cost-dashboard')
+  getGlobalCostDashboard(@Query('period') period?: 'day' | 'week' | 'month') {
+    return this.phase2Service.getCostDashboard(null, period);
+  }
+
+  @Get('projects/:projectId/cost-dashboard')
+  getProjectCostDashboard(
+    @Param('projectId') projectId: string,
+    @Query('period') period?: 'day' | 'week' | 'month',
+  ) {
+    return this.phase2Service.getCostDashboard(projectId, period);
   }
 }
