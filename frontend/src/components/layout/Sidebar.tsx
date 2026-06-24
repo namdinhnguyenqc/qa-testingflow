@@ -1,15 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   FolderOpen,
   Settings,
   ClipboardList,
   Cpu,
+  LogOut,
+  BarChart2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { authApi } from '@/lib/api';
 
 interface NavItem {
   href: string;
@@ -33,6 +36,12 @@ const navSections: NavSection[] = [
     label: 'QUẢN LÝ DỰ ÁN',
     items: [
       { href: '/projects', label: 'Dự án', icon: FolderOpen },
+    ],
+  },
+  {
+    label: 'PHÂN TÍCH',
+    items: [
+      { href: '/cost-dashboard', label: 'Chi phí AI', icon: BarChart2 },
     ],
   },
   {
@@ -65,6 +74,16 @@ function NavItemLink({ href, label, icon: Icon }: NavItem) {
 }
 
 export function Sidebar() {
+  const router = useRouter();
+
+  async function handleLogout() {
+    try {
+      await authApi.logout();
+    } catch {}
+    document.cookie = 'auth-token=; path=/; max-age=0';
+    router.push('/login');
+  }
+
   return (
     <aside className="w-60 flex-shrink-0 bg-white flex flex-col border-r border-gray-100 h-full">
       {/* Logo area */}
@@ -90,6 +109,17 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Logout */}
+      <div className="px-3 py-4 border-t border-gray-100">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+        >
+          <LogOut size={16} />
+          Đăng xuất
+        </button>
+      </div>
     </aside>
   );
 }

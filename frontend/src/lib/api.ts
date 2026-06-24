@@ -179,3 +179,31 @@ export const aiGatewayApi = {
   testConnection: (providerId: string) =>
     apiClient.post<AiProviderConnectionResult>(`/configs/ai-providers/${providerId}/test-connection`).then((r) => r.data),
 };
+
+export const authApi = {
+  logout: () => apiClient.post('/auth/logout').then((r) => r.data),
+};
+
+export const costDashboardApi = {
+  getGlobal: (period?: 'day' | 'week' | 'month') =>
+    apiClient.get('/cost-dashboard', { params: period ? { period } : {} }).then((r) => r.data),
+  getProject: (projectId: string, period?: 'day' | 'week' | 'month') =>
+    apiClient.get(`/projects/${projectId}/cost-dashboard`, { params: period ? { period } : {} }).then((r) => r.data),
+};
+
+export const promptCompareApi = {
+  compare: (idA: string, idB: string) =>
+    apiClient.get('/configs/prompt-versions/compare', { params: { idA, idB } }).then((r) => r.data),
+};
+
+export const semanticSearchApi = {
+  embed: (versionId: string) =>
+    apiClient.post(`/requirements/versions/${versionId}/embed`).then((r) => r.data),
+  search: (versionId: string, q: string, topK = 10) =>
+    apiClient
+      .get<{ id: string; externalId: string; module: string; content: string; score: number }[]>(
+        `/requirements/versions/${versionId}/search`,
+        { params: { q, topK } },
+      )
+      .then((r) => r.data),
+};

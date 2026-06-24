@@ -2,15 +2,15 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, Loader2, Plus, Zap } from 'lucide-react';
-import { aiGatewayApi, configsApi, promptsApi } from '@/lib/api';
+import { CheckCircle2, XCircle, Loader2, Plus, Zap, GitCompare } from 'lucide-react';
+import { aiGatewayApi, configsApi, promptsApi, promptCompareApi } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import type { CreatePromptVersionRequest } from '@/types/api';
 
-type ConfigTab = 'providers' | 'gates' | 'prompts';
+type ConfigTab = 'providers' | 'gates' | 'prompts' | 'secrets';
 
 const PROVIDER_LIST = [
   { id: 'openai', label: 'OpenAI', models: ['gpt-4.1-mini', 'gpt-4o', 'gpt-4-turbo'] },
@@ -40,6 +40,7 @@ export default function ConfigPage() {
             { id: 'providers', label: 'AI Providers' },
             { id: 'gates', label: 'Quality Gates' },
             { id: 'prompts', label: 'Prompt Versions' },
+            { id: 'secrets', label: 'Secrets' },
           ] as { id: ConfigTab; label: string }[]).map(({ id, label }) => (
             <button
               key={id}
@@ -58,6 +59,7 @@ export default function ConfigPage() {
         {activeTab === 'providers' && <ProvidersTab />}
         {activeTab === 'gates' && <GatesTab />}
         {activeTab === 'prompts' && <PromptsTab />}
+        {activeTab === 'secrets' && <SecretsTab />}
       </div>
     </div>
   );
@@ -213,6 +215,12 @@ function PromptsTab() {
   const [selectedSkill, setSelectedSkill] = useState(SKILL_NAMES[0]);
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState<Partial<CreatePromptVersionRequest>>({});
+  const [compareIds, setCompareIds] = useState<{ a: string; b: string } | null>(null);
+  const [compareResult, setCompareResult] = useState<null | {
+    a: { versionNo: number }; b: { versionNo: number };
+    diff: { type: 'equal' | 'removed' | 'added'; line: string }[];
+  }>(null);
+  const [comparing, setComparing] = useState(false);
 
   const { data: prompts, isLoading } = useQuery({
     queryKey: ['prompt-versions', selectedSkill],
@@ -252,10 +260,31 @@ function PromptsTab() {
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-          <Plus size={13} />
-          Tạo version mới
-        </Button>
+        <div className="flex gap-2">
+          {compareIds && (
+            <Button
+              size="sm"
+              variant="outline"
+              loading={comparing}
+              onClick={async () => {
+                setComparing(true);
+                try {
+                  const r = await promptCompareApi.compare(compareIds.a, compareIds.b);
+                  setCompareResult(r);
+                } finally {
+                  setComparing(false);
+                }
+              }}
+            >
+              <GitCompare size={13} />
+              So sánh đã chọn
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+            <Plus size={13} />
+            Tạo version mới
+          </Button>
+        </div>
       </div>
 
       {showCreate && (
@@ -300,6 +329,29 @@ function PromptsTab() {
         </Card>
       )}
 
+      {/* Compare result */}
+      {compareResult && (
+        <Card className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold">
+              So sánh v{compareResult.a.versionNo} → v{compareResult.b.versionNo}
+            </p>
+            <button onClick={() => { setCompareResult(null); setCompareIds(null); }} className="text-xs text-muted-foreground hover:text-foreground">Đóng</button>
+          </div>
+          <div className="rounded-md border overflow-auto max-h-64 font-mono text-xs">
+            {compareResult.diff.map((line, i) => (
+              <div key={i} className={`px-3 py-0.5 ${
+                line.type === 'removed' ? 'bg-red-50 text-red-700' :
+                line.type === 'added' ? 'bg-green-50 text-green-700' : 'text-gray-600'
+              }`}>
+                {line.type === 'removed' ? '− ' : line.type === 'added' ? '+ ' : '  '}
+                {line.line}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
@@ -310,10 +362,30 @@ function PromptsTab() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {prompts.map((p) => (
-            <Card key={p.id} className="flex flex-col gap-2">
+          {prompts.map((p) => {
+            const isSelA = compareIds?.a === p.id;
+            const isSelB = compareIds?.b === p.id;
+            return (
+            <Card key={p.id} className={`flex flex-col gap-2 ${isSelA || isSelB ? 'ring-2 ring-primary/40' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                  <button
+                    title="Chọn để so sánh"
+                    onClick={() => {
+                      setCompareResult(null);
+                      if (isSelA) { setCompareIds((c) => c ? { a: '', b: c.b } : null); return; }
+                      if (isSelB) { setCompareIds((c) => c ? { a: c.a, b: '' } : null); return; }
+                      if (!compareIds?.a) setCompareIds((c) => ({ a: p.id, b: c?.b ?? '' }));
+                      else setCompareIds((c) => ({ a: c?.a ?? '', b: p.id }));
+                    }}
+                    className={`text-xs px-1.5 py-0.5 rounded border font-mono transition-colors ${
+                      isSelA ? 'border-blue-500 bg-blue-50 text-blue-600' :
+                      isSelB ? 'border-purple-500 bg-purple-50 text-purple-600' :
+                      'border-gray-200 text-gray-400 hover:border-gray-400'
+                    }`}
+                  >
+                    {isSelA ? 'A' : isSelB ? 'B' : '□'}
+                  </button>
                   <span className="text-xs font-mono text-muted-foreground">v{p.versionNo}</span>
                   {p.isActive && (
                     <Badge variant="success">
@@ -343,7 +415,96 @@ function PromptsTab() {
                 {p.content}
               </pre>
             </Card>
-          ))}
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Secrets tab (A3.1) ───────────────────────────────────────────────────────
+
+interface SecretMeta { name: string; envKey: string; masked: string; configured: boolean; rotatedAt: string | null }
+
+function SecretsTab() {
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
+  const [rotated, setRotated] = useState<Record<string, string>>({});
+
+  const { data: secrets, isLoading, refetch } = useQuery<SecretMeta[]>({
+    queryKey: ['secrets'],
+    queryFn: () => fetch('/api/backend/configs/secrets', {
+      headers: { cookie: document.cookie },
+      credentials: 'include',
+    }).then((r) => r.json()),
+  });
+
+  async function handleRotate(name: string) {
+    setRotatingId(name);
+    try {
+      const res = await fetch(`/api/backend/configs/secrets/${name}/rotate`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json() as { rotatedAt: string };
+      setRotated((p) => ({ ...p, [name]: data.rotatedAt }));
+      void refetch();
+    } finally {
+      setRotatingId(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 max-w-2xl">
+      <p className="text-xs text-muted-foreground">
+        Secrets được đọc từ environment variables. Nhấn Rotate để đánh dấu secret cần thay thế.
+      </p>
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
+      ) : (
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Secret</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Env var</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Giá trị</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Rotated</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {secrets?.map((s) => (
+                <tr key={s.name} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-xs font-mono font-medium">{s.name}</td>
+                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{s.envKey}</td>
+                  <td className="px-4 py-3">
+                    {s.configured ? (
+                      <Badge variant="success">{s.masked}</Badge>
+                    ) : (
+                      <Badge variant="muted">Chưa cấu hình</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {(rotated[s.name] ?? s.rotatedAt)
+                      ? new Date(rotated[s.name] ?? s.rotatedAt!).toLocaleString('vi-VN')
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!s.configured || rotatingId === s.name}
+                      loading={rotatingId === s.name}
+                      onClick={() => handleRotate(s.name)}
+                    >
+                      Rotate
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

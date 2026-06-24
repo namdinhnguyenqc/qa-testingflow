@@ -25,6 +25,8 @@ const ACTION_COLORS: Record<string, 'success' | 'info' | 'warning' | 'danger' | 
 export default function AuditLogsPage() {
   const [projectId, setProjectId] = useState('');
   const [actionFilter, setActionFilter] = useState('');
+  const [entityType, setEntityType] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
 
   const { data: logs, isLoading } = useQuery({
     queryKey: ['audit-logs', projectId, actionFilter],
@@ -34,6 +36,12 @@ export default function AuditLogsPage() {
         action: actionFilter || undefined,
       }),
     refetchInterval: 30_000,
+    select: (data) => {
+      let result = data;
+      if (entityType) result = result.filter((l) => l.entityType?.toLowerCase().includes(entityType.toLowerCase()));
+      if (dateFrom) result = result.filter((l) => new Date(l.createdAt) >= new Date(dateFrom));
+      return result;
+    },
   });
 
   return (
@@ -42,21 +50,43 @@ export default function AuditLogsPage() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         {/* Filters */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex flex-wrap gap-3 mb-6">
           <input
             type="text"
-            placeholder="Lọc theo Project ID..."
+            placeholder="Project ID..."
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
+            className="h-9 w-48 rounded-lg border border-gray-200 bg-white px-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
+          />
+          <input
+            type="text"
+            placeholder="Action (VD: ARTIFACT_PARSED)..."
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value)}
             className="h-9 w-64 rounded-lg border border-gray-200 bg-white px-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
           />
           <input
             type="text"
-            placeholder="Lọc theo action (VD: ARTIFACT_PARSED)..."
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            className="h-9 w-80 rounded-lg border border-gray-200 bg-white px-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
+            placeholder="Entity type..."
+            value={entityType}
+            onChange={(e) => setEntityType(e.target.value)}
+            className="h-9 w-40 rounded-lg border border-gray-200 bg-white px-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
           />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            title="Từ ngày"
+            className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
+          />
+          {(projectId || actionFilter || entityType || dateFrom) && (
+            <button
+              onClick={() => { setProjectId(''); setActionFilter(''); setEntityType(''); setDateFrom(''); }}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+            >
+              Xóa filter
+            </button>
+          )}
         </div>
 
         {isLoading ? (

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { CheckSquare, Square, Minus, Check, X, Pencil } from 'lucide-react';
 import { testcasesApi } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -132,12 +133,22 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
     bulkMutation.mutate({ ids, status });
   }
 
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 48,
+    overscan: 10,
+  });
+  const useVirtual = filtered.length > 50;
+
   return (
     <div className="p-6 flex flex-col gap-4">
       <div>
         <h2 className="text-sm font-semibold">Review testcase</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           {testCases.length} testcase{testcaseSet?.versionNo ? ` · Phiên bản v${testcaseSet.versionNo}` : ''}
+          {useVirtual && <span className="ml-1 text-blue-500">(virtual scroll)</span>}
         </p>
       </div>
 
@@ -246,9 +257,9 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
           Không tìm thấy testcase phù hợp.
         </div>
       ) : (
-        <div className="rounded-md border overflow-x-auto bg-white">
+        <div ref={tableContainerRef} className="rounded-md border overflow-auto bg-white" style={{ maxHeight: useVirtual ? 520 : undefined }}>
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-2 w-8">
                   <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
@@ -270,8 +281,8 @@ export function TabTestcaseReview({ testcaseSetId }: Props) {
                 <th className="px-3 py-2 w-16" />
               </tr>
             </thead>
-            <tbody className="divide-y">
-              {filtered.map((tc) => {
+            <tbody className="divide-y" style={useVirtual ? { height: rowVirtualizer.getTotalSize() } : undefined}>
+              {(useVirtual ? rowVirtualizer.getVirtualItems().map((vRow) => filtered[vRow.index]) : filtered).map((tc) => {
                 const isEditing = editing?.id === tc.id;
                 const isExpanded = expandedId === tc.id;
                 const isSelected = selectedIds.has(tc.id);
